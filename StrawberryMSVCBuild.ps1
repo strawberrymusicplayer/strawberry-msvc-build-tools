@@ -2008,7 +2008,7 @@ function Build-Faac {
   try {
     DownloadPackage -package_name "faac"
     DownloadPatch -patch_name "faac-msvc.patch"
-    ExtractPackage "faac-$faac_version.tar.gz"
+    ExtractPackage "faac-$faac_version.tar.gz" -package_dir "faac-faac-$faac_version"
     Set-Location "faac-faac-$faac_version"
     & patch -p1 -N -i $downloads_path\faac-msvc.patch
     Set-Location "project\msvc"
