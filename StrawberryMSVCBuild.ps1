@@ -51,6 +51,42 @@ param(
   [string]$build_path = ""
 )
 
+function AppendPathToEnvPath() {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory=$true)]
+    [string]$path
+  )
+  $path_normalized = $path.TrimEnd('\').ToLowerInvariant()
+  $paths = $env:PATH -split ';' | ForEach-Object { $_.TrimEnd('\') }
+  if ($paths -notcontains $path_normalized) {
+    $env:PATH += ";$path"
+  }
+}
+
+function PrependPathToEnvPath() {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory=$true)]
+    [string]$path
+  )
+  $path_normalized = $path.TrimEnd('\').ToLowerInvariant()
+  $paths = $env:PATH -split ';' | ForEach-Object { $_.TrimEnd('\') }
+  if ($paths -notcontains $path_normalized) {
+    $env:PATH = "$path;$env:PATH"
+  }
+}
+
+function RemovePathFromEnvPath() {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory=$true)]
+    [string]$path
+  )
+  $path_normalized = $path.TrimEnd('\').ToLowerInvariant()
+  $env:PATH = ($env:PATH -split ';' | Where-Object { $_.TrimEnd('\').ToLowerInvariant() -ne $path_normalized }) -join ';'
+}
+
 # Set strict mode
 $ErrorActionPreference = "Stop"
 
@@ -238,14 +274,10 @@ $env:PKG_CONFIG_ALLOW_SYSTEM_LIBS = "1"
 $env:CL = "-MP"
 $env:YASMPATH = "$prefix_path\bin"
 
-if ($env:PATH -split ';' -notcontains "$prefix_path\bin") {
-  $env:PATH = "$prefix_path\bin;$env:PATH"
-}
+PrependPathToEnvPath -path "$prefix_path\bin"
 
 # Remove Strawberry Perl bin path
-$strawberry_c_bin_path = 'C:\Strawberry\c\bin'
-$strawberry_c_bin_path_normalized = $strawberry_c_bin_path.TrimEnd('\').ToLowerInvariant()
-$env:PATH = ($env:PATH -split ';' | Where-Object { $_.TrimEnd('\').ToLowerInvariant() -ne $strawberry_c_bin_path_normalized }) -join ';'
+RemovePathFromEnvPath -path 'C:\Strawberry\c\bin'
 
 Write-Host "  Setting Visual Studio environment..." -ForegroundColor Cyan
 $vs_where_path = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -779,6 +811,8 @@ function CMakeBuild {
     $configure_args += $additional_args
   }
   Write-Host "cmake" @configure_args
+  RemovePathFromEnvPath -path 'C:\Strawberry\perl\bin'
+  RemovePathFromEnvPath -path 'C:\Strawberry\perl\site\bin'
   & cmake @configure_args
   if ($LASTEXITCODE -ne 0) {
     throw "CMake configuration failed"
@@ -843,6 +877,8 @@ function MesonBuild {
       }
       $setup_args += $build_path
       Write-Host "meson setup" @setup_args
+      RemovePathFromEnvPath -path 'C:\Strawberry\perl\bin'
+      RemovePathFromEnvPath -path 'C:\Strawberry\perl\site\bin'
       & meson setup @setup_args
       if ($LASTEXITCODE -ne 0) {
         throw "Meson setup failed"
@@ -1075,6 +1111,8 @@ function Build-OpenSSL {
   Write-Host "Building OpenSSL" -ForegroundColor Yellow
   Push-Location $build_path
   try {
+    PrependPathToEnvPath -path 'C:\Strawberry\perl\bin'
+    PrependPathToEnvPath -path 'C:\Strawberry\perl\site\bin'
     DownloadPackage -package_name "openssl"
     ExtractPackage "openssl-$openssl_version.tar.gz"
     Set-Location "openssl-$openssl_version"
