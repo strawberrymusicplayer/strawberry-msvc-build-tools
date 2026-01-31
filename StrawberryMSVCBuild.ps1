@@ -242,6 +242,11 @@ if ($env:PATH -split ';' -notcontains "$prefix_path\bin") {
   $env:PATH = "$prefix_path\bin;$env:PATH"
 }
 
+# Remove Strawberry Perl bin path
+$strawberry_c_bin_path = 'C:\Strawberry\c\bin'
+$strawberry_c_bin_path_normalized = $strawberry_c_bin_path.TrimEnd('\').ToLowerInvariant()
+$env:PATH = ($env:PATH -split ';' | Where-Object { $_.TrimEnd('\').ToLowerInvariant() -ne $strawberry_c_bin_path_normalized }) -join ';'
+
 Write-Host "  Setting Visual Studio environment..." -ForegroundColor Cyan
 $vs_where_path = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 if (-not (Test-Path $vs_where_path)) {
