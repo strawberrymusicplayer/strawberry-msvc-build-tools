@@ -358,6 +358,18 @@ Write-Host ""
 Write-Host "All requirements satisfied!" -ForegroundColor Green
 Write-Host ""
 
+function RecursiveCopy {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory=$true)]
+    [string]$source_path,
+
+    [Parameter(Mandatory=$true)]
+    [string]$destination_path
+  )
+  xcopy /E /V /I /F /H /R /Y /B $source_path $destination_path
+}
+
 function DownloadFileIfNotExists {
   [CmdletBinding()]
   param(
@@ -997,7 +1009,7 @@ function Build-Yasm {
     CloneGitRepo -git_repo_name "yasm"
     DownloadPatch -patch_name "yasm-cmake.patch"
     if (-not (Test-Path "yasm")) {
-      Copy-Item "$downloads_path\yasm" "$build_path" -Recurse -Force
+      RecursiveCopy "$downloads_path\yasm" "$build_path\yasm"
     }
     Set-Location "yasm"
     & patch -p1 -N -i "$downloads_path\yasm-cmake.patch" 2>&1 | Out-Null
@@ -1095,7 +1107,7 @@ function Build-GMP {
     }
     Set-Location $smp_build_path
     if (-not (Test-Path "gmp")) {
-      Copy-Item "$downloads_path\gmp" "gmp" -Recurse -Force
+      RecursiveCopy "$downloads_path\gmp" "gmp"
       Set-Location "gmp"
       & git checkout $gmp_version
       Set-Location ..
@@ -1126,7 +1138,7 @@ function Build-Nettle {
     }
     Set-Location $smp_build_path
     if (-not (Test-Path "nettle")) {
-      Copy-Item "$downloads_path\nettle" "." -Recurse -Force
+      RecursiveCopy "$downloads_path\nettle" "nettle"
       Set-Location "nettle"
       & git checkout "nettle_$nettle_version"
       Set-Location ..
@@ -1168,7 +1180,7 @@ function Build-GnuTLS {
     }
     Set-Location $smp_build_path
     if (-not (Test-Path "gnutls")) {
-      Copy-Item "$downloads_path\gnutls" "." -Recurse -Force
+      RecursiveCopy "$downloads_path\gnutls" "gnutls"
       Set-Location "gnutls"
       & git checkout $gnutls_version
       Set-Location ..
@@ -1461,7 +1473,7 @@ function Build-LibFFI {
   try {
     CloneGitRepo "libffi"
     if (-not (Test-Path "libffi")) {
-      Copy-Item "$downloads_path\libffi" "." -Recurse -Force
+      RecursiveCopy "$downloads_path\libffi" "libffi"
     }
     Set-Location "libffi"
     MesonBuild
@@ -2118,7 +2130,7 @@ function Build-FFMpeg {
   try {
     CloneGitRepo -git_repo_name "ffmpeg"
     if (-not (Test-Path "ffmpeg")) {
-      Copy-Item "$downloads_path\ffmpeg" "." -Recurse -Force
+      RecursiveCopy "$downloads_path\ffmpeg" "ffmpeg"
       Set-Location "ffmpeg"
       & git checkout "meson-$ffmpeg_version"
       & git checkout .
@@ -2162,8 +2174,9 @@ function Build-GStreamer {
     if ($gst_dev -eq "ON") {
       CloneGitRepo -repo_name "gstreamer"
       if (-not (Test-Path "gstreamer")) {
-        Copy-Item "$downloads_path\gstreamer\subprojects\gstreamer" "." -Recurse -Force
+        RecursiveCopy "$downloads_path\gstreamer\subprojects\gstreamer" "gstreamer"
       }
+      Set-Location "gstreamer"
     }
     else {
       DownloadPackage -package_name "gstreamer"
@@ -2196,7 +2209,7 @@ function Build-GstPluginsBase {
     if ($gst_dev -eq "ON") {
       CloneGitRepo -repo_name "gst-plugins-base"
       if (-not (Test-Path "gst-plugins-base")) {
-        Copy-Item "$downloads_path\gstreamer\subprojects\gst-plugins-base" "." -Recurse -Force
+        RecursiveCopy "$downloads_path\gstreamer\subprojects\gst-plugins-base" "gst-plugins-base"
       }
       Set-Location "gst-plugins-base"
     }
@@ -2246,7 +2259,7 @@ function Build-GstPluginsGood {
   try {
     if ($gst_dev -eq "ON") {
       if (-not (Test-Path "gst-plugins-good")) {
-        Copy-Item "$downloads_path\gstreamer\subprojects\gst-plugins-good" "." -Recurse -Force
+        RecursiveCopy "$downloads_path\gstreamer\subprojects\gst-plugins-good" "gst-plugins-good"
       }
       Set-Location "gst-plugins-good"
     }
@@ -2305,7 +2318,7 @@ function Build-GstPluginsBad {
   try {
     if ($gst_dev -eq "ON") {
       if (-not (Test-Path "gst-plugins-bad")) {
-        Copy-Item "$downloads_path\gstreamer\subprojects\gst-plugins-bad" "." -Recurse -Force
+        RecursiveCopy "$downloads_path\gstreamer\subprojects\gst-plugins-bad" "gst-plugins-bad"
       }
       Set-Location "gst-plugins-bad"
     }
@@ -2362,7 +2375,7 @@ function Build-GstPluginsUgly {
   try {
     if ($gst_dev -eq "ON") {
       if (-not (Test-Path "gst-plugins-ugly")) {
-        Copy-Item "$downloads_path\gstreamer\subprojects\gst-plugins-ugly" "." -Recurse -Force
+        RecursiveCopy "$downloads_path\gstreamer\subprojects\gst-plugins-ugly" "gst-plugins-ugly"
       }
       Set-Location "gst-plugins-ugly"
     }
@@ -2393,7 +2406,7 @@ function Build-GstLibav {
   try {
     if ($gst_dev -eq "ON") {
       if (-not (Test-Path "gst-libav")) {
-        Copy-Item "$downloads_path\gstreamer\subprojects\gst-libav" "." -Recurse -Force
+        RecursiveCopy "$downloads_path\gstreamer\subprojects\gst-libav" "gst-libav"
       }
       Set-Location "gst-libav"
     }
@@ -2419,7 +2432,7 @@ function Build-GstPluginsRs {
   try {
     CloneGitRepo -git_repo_name "gst-plugins-rs"
     if (-not (Test-Path "gst-plugins-rs")) {
-      Copy-Item "$downloads_path\gst-plugins-rs" "." -Recurse -Force
+      RecursiveCopy "$downloads_path\gst-plugins-rs" "gst-plugins-rs"
     }
     Set-Location "gst-plugins-rs"
     MesonBuild `
@@ -2462,7 +2475,7 @@ function Build-RapidJson {
   try {
     CloneGitRepo -git_repo_name "rapidjson"
     if (-not (Test-Path "rapidjson")) {
-      Copy-Item "$downloads_path\rapidjson" "." -Recurse -Force
+      RecursiveCopy "$downloads_path\rapidjson" "rapidjson"
     }
     Set-Location rapidjson
     CMakeBuild -additional_args @(
@@ -2521,7 +2534,7 @@ function Build-QtBase {
   try {
     if ($qt_dev -eq "ON") {
       if (-not (Test-Path "qtbase")) {
-        Copy-Item "$downloads_path\qtbase" "." -Recurse -Force
+        RecursiveCopy "$downloads_path\qtbase" "qtbase"
       }
       Set-Location "qtbase"
     }
@@ -2556,7 +2569,7 @@ function Build-QtTools {
   try {
     if ($qt_dev -eq "ON") {
       if (-not (Test-Path "qttools")) {
-        Copy-Item "$downloads_path\qttools" "." -Recurse -Force
+        RecursiveCopy "$downloads_path\qttools" "qttools"
       }
       Set-Location "qttools"
     }
@@ -2594,7 +2607,7 @@ function Build-QtImageFormats {
   try {
     if ($qt_dev -eq "ON") {
       if (-not (Test-Path "qtimageformats")) {
-        Copy-Item "$downloads_path\qtimageformats" "." -Recurse -Force
+        RecursiveCopy "$downloads_path\qtimageformats" "qtimageformats"
       }
       Set-Location "qtimageformats"
     }
@@ -2622,7 +2635,7 @@ function Build-QtGrpc {
   try {
     if ($qt_dev -eq "ON") {
       if (-not (Test-Path "qtgrpc")) {
-        Copy-Item "$downloads_path\qtgrpc" "." -Recurse -Force
+        RecursiveCopy "$downloads_path\qtgrpc" "qtgrpc"
       }
       Set-Location "qtgrpc"
     }
@@ -2647,7 +2660,7 @@ function Build-QtSparkle {
   try {
     CloneGitRepo -git_repo_name "qtsparkle"
     if (-not (Test-Path "qtsparkle")) {
-      Copy-Item "$downloads_path\qtsparkle" "." -Recurse -Force
+      RecursiveCopy "$downloads_path\qtsparkle" "qtsparkle"
     }
     Set-Location "qtsparkle"
     CMakeBuild -additional_args @(
@@ -2707,7 +2720,7 @@ function Build-TinySvcmdns {
   try {
     CloneGitRepo -git_repo_name "tinysvcmdns"
     if (-not (Test-Path "tinysvcmdns")) {
-      Copy-Item "$downloads_path\tinysvcmdns" "." -Recurse -Force
+      RecursiveCopy "$downloads_path\tinysvcmdns" "tinysvcmdns"
     }
     Set-Location "tinysvcmdns"
     CMakeBuild -additional_args @("-DCMAKE_POLICY_VERSION_MINIMUM=3.5")
@@ -2743,7 +2756,7 @@ function Build-PeUtil {
   try {
     CloneGitRepo -git_repo_name "pe-util"
     if (-not (Test-Path "pe-util")) {
-      Copy-Item "$downloads_path\pe-util" "." -Recurse -Force
+      RecursiveCopy "$downloads_path\pe-util" "pe-util"
     }
     Set-Location "pe-util"
     CMakeBuild -additional_args @("-DBUILD_COMMAND_LINE_TOOLS=OFF")
@@ -2759,7 +2772,7 @@ function Build-Strawberry {
   try {
     CloneGitRepo -git_repo_name "strawberry"
     if (-not (Test-Path "strawberry")) {
-      Copy-Item "$downloads_path\strawberry" "." -Recurse -Force
+      RecursiveCopy "$downloads_path\strawberry" "strawberry"
     }
     Set-Location "strawberry"
     CMakeBuild -additional_args @(
