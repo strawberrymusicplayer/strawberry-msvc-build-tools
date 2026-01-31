@@ -1839,8 +1839,9 @@ function Build-Lame {
     if ($LASTEXITCODE -ne 0) { throw "nmake build failed" }
     New-Item -Path "$prefix_path\include\lame" -ItemType Directory -Force
     Copy-Item "include\lame.h" "$prefix_path\include\lame\" -Force
-    Copy-Item "output\libmp3lame.lib" "$prefix_path\lib\mp3lame.lib" -Force
+    Copy-Item "output\libmp3lame.lib" "$prefix_path\lib\" -Force
     Copy-Item "output\libmp3lame.dll" "$prefix_path\bin\" -Force
+    Copy-Item "$prefix_path\lib\libmp3lame.lib" "$prefix_path\lib\mp3lame.lib" -Force
     CreatePkgConfigFile -prefix $prefix_path_forward -name "lame" -description "encoder that converts audio to the MP3 file format." -url "https://lame.sourceforge.io/" -version $lame_version -libs "-L`${libdir} -lmp3lame" -cflags "-I`${includedir}" -output_file "$prefix_path\lib\pkgconfig\lame.pc"
     Copy-Item "$prefix_path\lib\pkgconfig\lame.pc" "$prefix_path\lib\pkgconfig\libmp3lame.pc" -Force
     Write-Host "lame built successfully!" -ForegroundColor Green
@@ -1867,8 +1868,9 @@ function Build-Twolame {
     (Get-Content "libtwolame_dll.vcxproj") -replace "MachineX86", "MachineX64" | Set-Content "libtwolame_dll.vcxproj"
     MSBuildProject -project_path "libtwolame_dll.sln" -configuration "$build_type"
     Copy-Item "..\libtwolame\twolame.h" "$prefix_path\include\" -Force
-    Copy-Item "lib\libtwolame_dll.lib" "$prefix_path\lib\twolame${lib_postfix}.lib" -Force
+    Copy-Item "lib\libtwolame_dll.lib" "$prefix_path\lib\" -Force
     Copy-Item "lib\*.dll" "$prefix_path\bin\" -Force
+    Copy-Item "$prefix_path\lib\libtwolame_dll.lib" "$prefix_path\lib\twolame${lib_postfix}.lib" -Force
     CreatePkgConfigFile -prefix $prefix_path_forward -name "twolame" -description "optimised MPEG Audio Layer 2 (MP2) encoder based on tooLAME" -url "http://www.twolame.org/" -version $twolame_version -libs "-L`${libdir} -ltwolame${lib_postfix}" -cflags "-I`${includedir}" -output_file "$prefix_path\lib\pkgconfig\twolame.pc"
     Write-Host "twolame built successfully!" -ForegroundColor Green
   }
@@ -2013,8 +2015,9 @@ function Build-Faac {
     UpgradeVSProject "faac.sln"
     MSBuildProject "faac.sln" -configuration "$build_type"
     Copy-Item "..\..\include\*.h" "$prefix_path\include\" -Force
-    Copy-Item "bin\$build_type\libfaac_dll.lib" "$prefix_path\lib\faac.lib" -Force
+    Copy-Item "bin\$build_type\libfaac_dll.lib" "$prefix_path\lib\" -Force
     Copy-Item "bin\$build_type\libfaac_dll.dll" "$prefix_path\bin\" -Force
+    Copy-Item "$prefix_path\lib\libfaac_dll.lib" "$prefix_path\lib\faac.lib" -Force
     CreatePkgConfigFile -prefix $prefix_path_forward -name "faac" -description "faac" -url "https://github.com/knik0/faac" -version $faac_version -libs "-L`${libdir} -lfaac" -cflags "-I`${includedir}" -output_file "$prefix_path\lib\pkgconfig\faac.pc"
   }
   finally {
@@ -2834,7 +2837,7 @@ try {
   if (-not (Test-Path "$prefix_path\lib\pkgconfig\speex.pc")) { $build_queue += "speex" }
   if (-not (Test-Path "$prefix_path\lib\pkgconfig\libmpg123.pc")) { $build_queue += "mpg123" }
   if (-not (Test-Path "$prefix_path\lib\mp3lame.lib")) { $build_queue += "lame" }
-  if (-not (Test-Path "$prefix_path\lib\libtwolame_dll.lib")) { $build_queue += "twolame" }
+  if (-not (Test-Path "$prefix_path\lib\twolame${lib_postfix}.lib")) { $build_queue += "twolame" }
   if (-not (Test-Path "$prefix_path\lib\pkgconfig\fftw3.pc")) { $build_queue += "fftw3" }
   if (-not (Test-Path "$prefix_path\lib\pkgconfig\mpcdec.pc")) { $build_queue += "musepack" }
   if (-not (Test-Path "$prefix_path\lib\pkgconfig\libopenmpt.pc")) { $build_queue += "libopenmpt" }
