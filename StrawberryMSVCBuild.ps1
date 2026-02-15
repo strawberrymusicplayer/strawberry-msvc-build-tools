@@ -2792,11 +2792,12 @@ function Build-Strawberry {
       RecursiveCopy "$downloads_path\strawberry" "strawberry"
     }
     Set-Location "strawberry"
+    $enable_win32_console = if ($build_type -eq "debug") { "ON" } else { "OFF" }
     CMakeBuild -additional_args @(
         "-DARCH=$arch",
         "-DENABLE_TRANSLATIONS=ON",
         "-DBUILD_WERROR=ON",
-        "-DENABLE_WIN32_CONSOLE=OFF",
+        "-DENABLE_WIN32_CONSOLE=$enable_win32_console",
         "-DICU_ROOT=$prefix_path",
         "-DENABLE_AUDIOCD=OFF",
         "-DENABLE_MTP=OFF",
