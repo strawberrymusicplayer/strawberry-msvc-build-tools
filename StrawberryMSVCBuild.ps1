@@ -928,13 +928,16 @@ function MSBuildProject {
     [string]$configuration = "${build_type}DLL",
 
     [Parameter(Mandatory=$false)]
+    [string]$platform = "$msbuild_platform",
+
+    [Parameter(Mandatory=$false)]
     [string[]]$additional_args = @()
   )
   Write-Host "Building $project_path with MSBuild" -ForegroundColor Cyan
   $build_args = @(
     $project_path,
     "-p:Configuration=$configuration",
-    "-p:Platform=$msbuild_platform",
+    "-p:Platform=$platform",
     "-p:UseEnv=true"
   )
   if ($additional_args) {
