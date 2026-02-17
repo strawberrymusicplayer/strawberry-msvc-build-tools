@@ -1992,7 +1992,7 @@ function Build-Musepack {
     ExtractPackage "musepack_src_r$musepack_version.tar.gz"
     Set-Location musepack_src_r$musepack_version
     & patch -p1 -N -i $downloads_path/musepack-fixes.patch
-    CMakeBuild -cmake_build_type_override "Debug" -additional_args @(
+    CMakeBuild -additional_args @(
         "-DSHARED=ON",
         "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
       )
