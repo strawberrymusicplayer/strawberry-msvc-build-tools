@@ -1099,10 +1099,9 @@ function Build-ZLib {
     ExtractPackage "zlib-$zlib_version.tar.gz"
     Set-Location "zlib-$zlib_version"
     CMakeBuild
-    Copy-Item "$prefix_path\share\pkgconfig\zlib.pc" "$prefix_path\lib\pkgconfig\" -Force
-    (Get-Content "$prefix_path\lib\pkgconfig\zlib.pc") -replace '-lz', "-lzlib$lib_postfix" | Set-Content "$prefix_path\lib\pkgconfig\zlib.pc"
-    Copy-Item "$prefix_path\lib\zlib$lib_postfix.lib" "$prefix_path\lib\z.lib" -Force
-    Remove-Item "$prefix_path\lib\zlibstatic*.lib" -ErrorAction SilentlyContinue
+    if ($build_type -eq "debug") {
+      (Get-Content $prefix_path\lib\pkgconfig\zlib.pc) -replace '-lz$', '-lzd' | Set-Content $prefix_path\lib\pkgconfig\zlib.pc
+    }
   }
   finally {
     Pop-Location
@@ -1120,8 +1119,7 @@ function Build-OpenSSL {
     Set-Location "openssl-$openssl_version"
     $is_debug = $build_type -eq "debug"
     $build_flag = if ($is_debug) { "--debug" } else { "--release" }
-    $zlib_lib  = if ($is_debug) { "zlibd.lib" } else { "zlib.lib" }
-    & perl Configure $openssl_platform shared zlib no-capieng no-tests --prefix="$prefix_path" --libdir=lib --openssldir="$prefix_path\ssl" $build_flag --with-zlib-include="$prefix_path\include" --with-zlib-lib="$prefix_path\lib\$zlib_lib"
+    & perl Configure $openssl_platform shared zlib no-capieng no-tests --prefix="$prefix_path" --libdir=lib --openssldir="$prefix_path/ssl" $build_flag --with-zlib-include="$prefix_path\include" --with-zlib-lib="$prefix_path\lib\z${lib_postfix}.lib"
     if ($LASTEXITCODE -ne 0) { throw "OpenSSL configure failed" }
     & nmake
     if ($LASTEXITCODE -ne 0) { throw "OpenSSL build failed" }
@@ -1241,6 +1239,8 @@ function Build-GnuTLS {
 "@
     Set-Content -Path "$build_path\ShiftMediaProject\build\gnutls\SMP\inject_zlib.props" -Value $props_content
     if (-not (Test-Path "$build_path\ShiftMediaProject\build\gnutls\SMP\Backup\libgnutls.vcxproj")) {
+    (Get-Content "libgnutls.vcxproj") -replace 'zlib.lib', "z${lib_postfix}.lib" | Set-Content "libgnutls.vcxproj"
+    (Get-Content "libgnutls.vcxproj") -replace 'zlibd.lib', "z${lib_postfix}.lib" | Set-Content "libgnutls.vcxproj"
       UpgradeVSProject -project_path "libgnutls.sln"
     }
     MSBuildProject -project_path "libgnutls.sln" -configuration "${cmake_build_type}DLL" -additional_args @("/p:ForceImportBeforeCppTargets=$build_path\ShiftMediaProject\build\gnutls\SMP\inject_zlib.props")
@@ -1251,6 +1251,9 @@ function Build-GnuTLS {
     }
     Copy-Item "..\..\..\msvc\include\gnutls\*.h" "$prefix_path\include\gnutls\" -Force
     # Workaround: Build static deps version
+    Write-Host "Building static gnutls"
+    & git clean -fd
+    & git reset --hard HEAD
     (Get-Content "project_get_dependencies.bat") -replace 'PAUSE', 'ECHO.' | Set-Content "project_get_dependencies.bat"
     & ".\project_get_dependencies.bat"
     if (-not (Test-Path "..\..\gmp\SMP\Backup\libgmp.vcxproj")) {
@@ -1269,6 +1272,7 @@ function Build-GnuTLS {
     MSBuildProject -project_path "..\..\zlib\SMP\libzlib.vcxproj" -configuration "Release"
     MSBuildProject -project_path "..\..\nettle\SMP\libnettle.vcxproj" -configuration "Release"
     MSBuildProject -project_path "..\..\nettle\SMP\libhogweed.vcxproj" -configuration "Release"
+    UpgradeVSProject -project_path "libgnutls.vcxproj"
     MSBuildProject -project_path "libgnutls.vcxproj" -configuration "ReleaseDLLStaticDeps"
     Remove-Item "$prefix_path\lib\gnutls$lib_postfix.lib" -Force -ErrorAction SilentlyContinue
     Remove-Item "$prefix_path\bin\gnutls$lib_postfix.dll" -Force -ErrorAction SilentlyContinue
