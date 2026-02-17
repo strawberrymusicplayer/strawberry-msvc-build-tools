@@ -170,8 +170,8 @@ if ($arch -eq "x86") {
   $glib_networking_gnutls="enabled"
   $gst_twolame="enabled"
   $gst_faac="enabled"
-  $lame_machine = "X86"
-  $lame_msvcver = "X86"
+  $lame_machine="X86"
+  $lame_msvcver="X86"
 }
 elseif ($arch -eq "x64" -or $arch -eq "x86_64" -or $arch -eq "amd64") {
   $arch="x86_64"
@@ -188,8 +188,8 @@ elseif ($arch -eq "x64" -or $arch -eq "x86_64" -or $arch -eq "amd64") {
   $glib_networking_gnutls="enabled"
   $gst_twolame="enabled"
   $gst_faac="enabled"
-  $lame_machine = "X64"
-  $lame_msvcver = "Win64"
+  $lame_machine="X64"
+  $lame_msvcver="Win64"
 }
 elseif ($arch -eq "arm64") {
   $arch="arm64"
@@ -206,8 +206,8 @@ elseif ($arch -eq "arm64") {
   $glib_networking_gnutls="disabled"
   $gst_twolame="disabled"
   $gst_faac="disabled"
-  $lame_machine = "ARM64"
-  $lame_msvcver = "Win64"
+  $lame_machine="ARM64"
+  $lame_msvcver="Win64"
 }
 else {
   Write-Error "Unknown arch: $arch"
