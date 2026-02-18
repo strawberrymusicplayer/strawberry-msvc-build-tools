@@ -25,13 +25,13 @@
 .PARAMETER arch
   Architecture: x86, x64, x86_64, amd64, or arm64
 .PARAMETER downloads_path
-  Path to downloads directory (default: c:\data\projects\strawberry\msvc_\downloads)
+  Path to downloads directory (default: c:/data/projects/strawberry/msvc_/downloads)
 .PARAMETER build_path
-  Path to build directory (default: c:\data\projects\strawberry\msvc_\build_<arch>_<build_type>, where <arch> and <build_type> are substituted with the actual parameter values)
+  Path to build directory (default: c:/data/projects/strawberry/msvc_/build_<arch>_<build_type>, where <arch> and <build_type> are substituted with the actual parameter values)
 .EXAMPLE
-  .\StrawberryMSVCBuild.ps1 -build_type release -arch x86_64
+  ./StrawberryMSVCBuild.ps1 -build_type release -arch x86_64
 .EXAMPLE
-  .\StrawberryMSVCBuild.ps1 -build_type debug -arch x86_64 -downloads_path "D:\strawberry\downloads" -build_path "D:\strawberry\build"
+  ./StrawberryMSVCBuild.ps1 -build_type debug -arch x86_64 -downloads_path "D:/strawberry/downloads" -build_path "D:/strawberry/build"
 #>
 
 [CmdletBinding()]
@@ -45,7 +45,7 @@ param(
   [string]$arch,
 
   [Parameter(Mandatory=$false)]
-  [string]$downloads_path = "c:\data\projects\strawberry\msvc_\downloads",
+  [string]$downloads_path = "c:/data/projects/strawberry/msvc_/downloads",
 
   [Parameter(Mandatory=$false)]
   [string]$build_path = ""
@@ -217,11 +217,10 @@ else {
 # Set paths
 # Use default build path if not specified
 if ([string]::IsNullOrEmpty($build_path)) {
-  $build_path = "c:\data\projects\strawberry\msvc_\build_${arch}_${build_type}"
+  $build_path = "c:/data/projects/strawberry/msvc_/build_${arch}_${build_type}"
 }
 
-$prefix_path = "c:\strawberry_msvc_${arch}_${build_type}"
-$prefix_path_forward = $prefix_path -replace '\\', '/'
+$prefix_path = "c:/strawberry_msvc_${arch}_${build_type}"
 $qt_dev = "OFF"
 $gst_dev = "OFF"
 
@@ -237,14 +236,14 @@ Write-Host "  Build Architecture:  $arch"
 Write-Host "  CMake build type:    $cmake_build_type"
 Write-Host "  Meson build type:    $meson_build_type"
 Write-Host "  Prefix path:         $prefix_path"
-Write-Host "  Prefix path forward: $prefix_path_forward"
+Write-Host "  Prefix path forward: $prefix_path"
 Write-Host ""
 
 # Create directories
 Write-Host "Creating directories..." -ForegroundColor Cyan
 try {
   @($downloads_path, $build_path, $prefix_path,
-      "$prefix_path\bin", "$prefix_path\lib", "$prefix_path\include") | ForEach-Object {
+      "$prefix_path/bin", "$prefix_path/lib", "$prefix_path/include") | ForEach-Object {
     if (-not (Test-Path $_)) {
       New-Item -ItemType Directory -Path $_ -Force | Out-Null
       Write-Host "  Created: $_" -ForegroundColor Green
@@ -257,28 +256,28 @@ catch {
 }
 
 # Copy sed.exe if needed
-if (-not (Test-Path "$prefix_path\bin\sed.exe")) {
-  if (Test-Path "$downloads_path\sed.exe") {
-    Copy-Item "$downloads_path\sed.exe" "$prefix_path\bin\" -Force
+if (-not (Test-Path "$prefix_path/bin/sed.exe")) {
+  if (Test-Path "$downloads_path/sed.exe") {
+    Copy-Item "$downloads_path/sed.exe" "$prefix_path/bin/" -Force
   }
 }
 
 # Setup environment variables
 Write-Host "Setting up environment variables..." -ForegroundColor Cyan
-$env:PKG_CONFIG_EXECUTABLE = "$prefix_path\bin\pkgconf.exe"
-$env:PKG_CONFIG_PATH = "$prefix_path\lib\pkgconfig"
+$env:PKG_CONFIG_EXECUTABLE = "$prefix_path/bin/pkgconf.exe"
+$env:PKG_CONFIG_PATH = "$prefix_path/lib/pkgconfig"
 $env:PKG_CONFIG_ALLOW_SYSTEM_CFLAGS = "1"
 $env:PKG_CONFIG_ALLOW_SYSTEM_LIBS = "1"
 $env:CL = "-MP"
-$env:YASMPATH = "$prefix_path\bin"
+$env:YASMPATH = "$prefix_path/bin"
 
-PrependPathToEnvPath -path "$prefix_path\bin"
+PrependPathToEnvPath -path "$prefix_path/bin"
 
 # Remove Strawberry Perl bin path
 RemovePathFromEnvPath -path 'C:\Strawberry\c\bin'
 
 Write-Host "  Setting Visual Studio environment..." -ForegroundColor Cyan
-$vs_where_path = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+$vs_where_path = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
 if (-not (Test-Path $vs_where_path)) {
   Write-Error "Could not locate VS where $vs_where_path"
   exit 1
@@ -295,13 +294,13 @@ if (-not (Test-Path $vs_install_path)) {
   exit 1
 }
 
-$vs_dev_shell_path = Join-Path $vs_install_path "Common7\Tools\Launch-VsDevShell.ps1"
+$vs_dev_shell_path = Join-Path $vs_install_path "Common7/Tools/Launch-VsDevShell.ps1"
 if (-not (Test-Path $vs_dev_shell_path)) {
   Write-Error "Could not locate VS dev shell $vs_dev_shell_path"
   exit 1
 }
 
-$vs_dev_env_path = Join-Path $vs_install_path "Common7\IDE\devenv.com"
+$vs_dev_env_path = Join-Path $vs_install_path "Common7/IDE/devenv.com"
 if (-not (Test-Path $vs_dev_env_path)) {
   Write-Error "Could not locate VS dev shell $vs_dev_env_path"
   exit 1
@@ -350,18 +349,18 @@ function Assert-Command {
 Write-Host "Checking requirements..." -ForegroundColor Cyan
 
 $tool_checks = @(
-  @{ Command = "patch"; Paths = @("C:\Program Files\Git\usr\bin"); Message = "Missing patch" }
-  @{ Command = "sed"; Paths = @("C:\Program Files\Git\usr\bin"); Message = "Missing sed" }
-  @{ Command = "nasm"; Paths = @("C:\Program Files\nasm"); Message = "Missing nasm. Download from https://www.nasm.us/" }
-  @{ Command = "win_flex"; Paths = @("C:\win_flex_bison"); Message = "Missing win_flex. Download from https://sourceforge.net/projects/winflexbison/" }
-  @{ Command = "win_bison"; Paths = @("C:\win_flex_bison"); Message = "Missing win_bison. Download from https://sourceforge.net/projects/winflexbison/" }
-  @{ Command = "perl"; Paths = @("C:\Strawberry\perl\bin"); Message = "Missing perl. Download Strawberry Perl from https://strawberryperl.com/" }
-  @{ Command = "python"; Paths = @("C:\Program Files\Python314", "C:\Program Files\Python313", "C:\Program Files\Python312", "C:\Program Files\Python311", "C:\Program Files\Python310"); Message = "Missing python. Download from https://www.python.org/" }
-  @{ Command = "tar"; Paths = @("C:\Program Files\Git\usr\bin"); Message = "Missing tar" }
-  @{ Command = "bzip2"; Paths = @("C:\Program Files\Git\usr\bin"); Message = "Missing bzip2" }
-  @{ Command = "7z"; Paths = @("C:\Program Files\7-Zip"); Message = "Missing 7z. Download 7-Zip from https://www.7-zip.org/download.html" }
-  @{ Command = "cmake"; Paths = @("C:\Program Files\CMake\bin"); Message = "Missing cmake. Download from https://cmake.org/" }
-  @{ Command = "meson"; Paths = @("C:\Program Files\Meson"); Message = "Missing meson. Download from https://mesonbuild.com/" }
+  @{ Command = "patch"; Paths = @("C:/Program Files/Git/usr/bin"); Message = "Missing patch" }
+  @{ Command = "sed"; Paths = @("C:/Program Files/Git/usr/bin"); Message = "Missing sed" }
+  @{ Command = "nasm"; Paths = @("C:/Program Files/nasm"); Message = "Missing nasm. Download from https://www.nasm.us/" }
+  @{ Command = "win_flex"; Paths = @("C:/win_flex_bison"); Message = "Missing win_flex. Download from https://sourceforge.net/projects/winflexbison/" }
+  @{ Command = "win_bison"; Paths = @("C:/win_flex_bison"); Message = "Missing win_bison. Download from https://sourceforge.net/projects/winflexbison/" }
+  @{ Command = "perl"; Paths = @("C:/Strawberry/perl/bin"); Message = "Missing perl. Download Strawberry Perl from https://strawberryperl.com/" }
+  @{ Command = "python"; Paths = @("C:/Program Files/Python314", "C:/Program Files/Python313", "C:/Program Files/Python312", "C:/Program Files/Python311", "C:/Program Files/Python310"); Message = "Missing python. Download from https://www.python.org/" }
+  @{ Command = "tar"; Paths = @("C:/Program Files/Git/usr/bin"); Message = "Missing tar" }
+  @{ Command = "bzip2"; Paths = @("C:/Program Files/Git/usr/bin"); Message = "Missing bzip2" }
+  @{ Command = "7z"; Paths = @("C:/Program Files/7-Zip"); Message = "Missing 7z. Download 7-Zip from https://www.7-zip.org/download.html" }
+  @{ Command = "cmake"; Paths = @("C:/Program Files/CMake/bin"); Message = "Missing cmake. Download from https://cmake.org/" }
+  @{ Command = "meson"; Paths = @("C:/Program Files/Meson"); Message = "Missing meson. Download from https://mesonbuild.com/" }
   @{ Command = "nmake"; Paths = @(); Message = "Missing nmake. Install Visual Studio 2022 or 2026" }
 )
 
@@ -369,7 +368,7 @@ foreach ($check in $tool_checks) {
   if (-not (Test-Command $check.Command)) {
     foreach ($path in $check.Paths) {
       if (Test-Path $path) {
-        $cmd_path = "$path\${check.Command}"
+        $cmd_path = "$path/${check.Command}"
         if (Test-Path $cmd_path) {
           $env:PATH = "$env:PATH;$path"
           break
@@ -397,7 +396,9 @@ function RecursiveCopy {
     [Parameter(Mandatory=$true)]
     [string]$destination_path
   )
-  xcopy /E /V /I /F /H /R /Y /B $source_path $destination_path
+  $source_path_backslash = $source_path -replace '/', '\'
+  $destination_path_backslash = $destination_path -replace '/', '\'
+  xcopy /E /V /I /F /H /R /Y /B $source_path_backslash $destination_path_backslash
 }
 
 function DownloadFileIfNotExists {
@@ -739,7 +740,7 @@ function ExtractPackage {
   Write-Host "Extracting $package_file" -ForegroundColor Cyan
   $extension = [System.IO.Path]::GetExtension($package_file)
   if ($extension -eq ".gz" -or $extension -eq ".tgz" -or $extension -eq ".bz2") {
-    & tar -xf "$downloads_path\$package_file"
+    & tar -xf "$downloads_path/$package_file"
     if ($LASTEXITCODE -ne 0) {
       if (-not $ignore_errors) {
         throw "Failed to extract $package_file"
@@ -747,14 +748,16 @@ function ExtractPackage {
     }
   }
   elseif ($extension -eq ".xz") {
-    & 7z x -aos "$downloads_path\$package_file" -o"$downloads_path" | Out-Default
+    $downloads_path_backslash = $downloads_path -replace '/', '\'
+    $package_file_backslash = $package_file -replace '/', '\'
+    & 7z x -aos "$downloads_path_backslash\$package_file_backslash" -o"$downloads_path_backslash" | Out-Default
     if ($LASTEXITCODE -ne 0) {
       if (-not $ignore_errors) {
         throw "Failed to extract $package_file"
       }
     }
-    $package_file_base = $package_file -replace '\.[^.]+$', ''
-    & 7z x -aos "$downloads_path\$package_file_base" | Out-Default
+    $package_file_base = $package_file_backslash -replace '\.[^.]+$', ''
+    & 7z x -aos "$downloads_path_backslash\$package_file_base" | Out-Default
     if ($LASTEXITCODE -ne 0) {
       if (-not $ignore_errors) {
         throw "Failed to extract $package_file_base"
@@ -800,11 +803,11 @@ function CMakeBuild {
     "-S", "$source_path",
     "-B", "$build_path",
     "-DCMAKE_BUILD_TYPE=$cmake_build_type_override",
-    "-DCMAKE_PREFIX_PATH=$prefix_path\lib\cmake",
+    "-DCMAKE_PREFIX_PATH=$prefix_path/lib/cmake",
     "-DCMAKE_INSTALL_PREFIX=$prefix_path",
     "-DBUILD_STATIC_LIBS=$build_static_libs_toggle",
     "-DBUILD_SHARED_LIBS=$build_shared_libs_toggle",
-    "-DPKG_CONFIG_EXECUTABLE=$prefix_path\bin\pkgconf.exe"
+    "-DPKG_CONFIG_EXECUTABLE=$prefix_path/bin/pkgconf.exe"
   )
   if ($additional_args) {
     $configure_args += $additional_args
@@ -845,7 +848,7 @@ function MesonBuild {
     [string]$default_library = "shared",
 
     [Parameter(Mandatory=$false)]
-    [string]$pkg_config_path = "$prefix_path\lib\pkgconfig",
+    [string]$pkg_config_path = "$prefix_path/lib/pkgconfig",
 
     [Parameter(Mandatory=$false)]
     [string]$wrap_mode = "nodownload",
@@ -857,19 +860,19 @@ function MesonBuild {
   Write-Host "Building $package_name with Meson" -ForegroundColor Cyan
   Push-Location $source_path
   try {
-    if (-not (Test-Path "$build_path\build.ninja")) {
+    if (-not (Test-Path "$build_path/build.ninja")) {
       $setup_args = @(
         "--buildtype=$build_type",
         "--default-library=$default_library",
         "--pkg-config-path=$pkg_config_path",
-        "--includedir=$prefix_path\include",
-        "--libdir=$prefix_path\lib",
-        "--prefix=$prefix_path_forward",
+        "--includedir=$prefix_path/include",
+        "--libdir=$prefix_path/lib",
+        "--prefix=$prefix_path",
         "--wrap-mode=$wrap_mode",
-        "-Dc_args=-I$prefix_path\include",
-        "-Dcpp_args=-I$prefix_path\include",
-        "-Dc_link_args=-L$prefix_path\lib",
-        "-Dcpp_link_args=-L$prefix_path\lib"
+        "-Dc_args=-I$prefix_path/include",
+        "-Dcpp_args=-I$prefix_path/include",
+        "-Dc_link_args=-L$prefix_path/lib",
+        "-Dcpp_link_args=-L$prefix_path/lib"
       )
       if ($additional_args) {
         $setup_args += $additional_args
@@ -1033,7 +1036,7 @@ function Build-PkgConf {
     ExtractPackage "pkgconf-$pkgconf_version.tar.gz"
     Set-Location "pkgconf-pkgconf-$pkgconf_version"
     MesonBuild -additional_args @("-Dtests=disabled")
-    Copy-Item "$prefix_path\bin\pkgconf.exe" "$prefix_path\bin\pkg-config.exe" -Force
+    Copy-Item "$prefix_path/bin/pkgconf.exe" "$prefix_path/bin/pkg-config.exe" -Force
   }
   finally {
     Pop-Location
@@ -1047,10 +1050,10 @@ function Build-Yasm {
     CloneGitRepo -git_repo_name "yasm"
     DownloadPatch -patch_name "yasm-cmake.patch"
     if (-not (Test-Path "yasm")) {
-      RecursiveCopy "$downloads_path\yasm" "$build_path\yasm"
+      RecursiveCopy "$downloads_path/yasm" "$build_path/yasm"
     }
     Set-Location "yasm"
-    & patch -p1 -N -i "$downloads_path\yasm-cmake.patch" 2>&1 | Out-Null
+    & patch -p1 -N -i "$downloads_path/yasm-cmake.patch" 2>&1 | Out-Null
     CMakeBuild
   }
   finally {
@@ -1066,7 +1069,7 @@ function Build-ProxyIntl {
     ExtractPackage "proxy-libintl-$proxy_libintl_version.tar.gz" -ignore_errors $true
     Set-Location "proxy-libintl-$proxy_libintl_version"
     MesonBuild
-    CreatePkgConfigFile -prefix $prefix_path_forward -name "libintl" -description "libintl" -url "https://github.com/frida/proxy-libintl" -version $proxy_libintl_version -libs "-L`${libdir} -lintl" -cflags "-I`${includedir}" -output_file "$prefix_path\lib\pkgconfig\intl.pc"
+    CreatePkgConfigFile -prefix $prefix_path -name "libintl" -description "libintl" -url "https://github.com/frida/proxy-libintl" -version $proxy_libintl_version -libs "-L`${libdir} -lintl" -cflags "-I`${includedir}" -output_file "$prefix_path/lib/pkgconfig/intl.pc"
   }
   finally {
     Pop-Location
@@ -1100,7 +1103,7 @@ function Build-ZLib {
     Set-Location "zlib-$zlib_version"
     CMakeBuild
     if ($build_type -eq "debug") {
-      (Get-Content $prefix_path\lib\pkgconfig\zlib.pc) -replace '-lz$', '-lzd' | Set-Content $prefix_path\lib\pkgconfig\zlib.pc
+      (Get-Content $prefix_path/lib/pkgconfig/zlib.pc) -replace '-lz$', '-lzd' | Set-Content $prefix_path/lib/pkgconfig/zlib.pc
     }
   }
   finally {
@@ -1119,15 +1122,15 @@ function Build-OpenSSL {
     Set-Location "openssl-$openssl_version"
     $is_debug = $build_type -eq "debug"
     $build_flag = if ($is_debug) { "--debug" } else { "--release" }
-    & perl Configure $openssl_platform shared zlib no-capieng no-tests --prefix="$prefix_path" --libdir=lib --openssldir="$prefix_path/ssl" $build_flag --with-zlib-include="$prefix_path\include" --with-zlib-lib="$prefix_path\lib\z${lib_postfix}.lib"
+    & perl Configure $openssl_platform shared zlib no-capieng no-tests --prefix="$prefix_path" --libdir=lib --openssldir="$prefix_path/ssl" $build_flag --with-zlib-include="$prefix_path/include" --with-zlib-lib="$prefix_path/lib/z${lib_postfix}.lib"
     if ($LASTEXITCODE -ne 0) { throw "OpenSSL configure failed" }
     & nmake
     if ($LASTEXITCODE -ne 0) { throw "OpenSSL build failed" }
     & nmake install_sw
     if ($LASTEXITCODE -ne 0) { throw "OpenSSL install failed" }
-    Copy-Item "$prefix_path\lib\libssl.lib" "$prefix_path\lib\ssl.lib" -Force
-    Copy-Item "$prefix_path\lib\libcrypto.lib" "$prefix_path\lib\crypto.lib" -Force
-    Copy-Item "exporters\*.pc" "$prefix_path\lib\pkgconfig" -Force
+    Copy-Item "$prefix_path/lib/libssl.lib" "$prefix_path/lib/ssl.lib" -Force
+    Copy-Item "$prefix_path/lib/libcrypto.lib" "$prefix_path/lib/crypto.lib" -Force
+    Copy-Item "exporters/*.pc" "$prefix_path/lib/pkgconfig" -Force
   }
   finally {
     Pop-Location
@@ -1139,26 +1142,26 @@ function Build-GMP {
   Push-Location $build_path
   try {
     CloneGitRepo -git_repo_name "gmp"
-    $smp_build_path = "$build_path\ShiftMediaProject\build"
+    $smp_build_path = "$build_path/ShiftMediaProject/build"
     if (-not (Test-Path $smp_build_path)) {
       New-Item -ItemType Directory -Path $smp_build_path -Force | Out-Null
     }
     Set-Location $smp_build_path
     if (-not (Test-Path "gmp")) {
-      RecursiveCopy "$downloads_path\gmp" "gmp"
+      RecursiveCopy "$downloads_path/gmp" "gmp"
       Set-Location "gmp"
       & git checkout $gmp_version
       Set-Location ..
     }
-    Set-Location "gmp\SMP"
-    if (-not (Test-Path "Backup\libgmp.vcxproj")) {
-      UpgradeVSProject -project_path "$smp_build_path\gmp\SMP\libgmp.vcxproj"
+    Set-Location "gmp/SMP"
+    if (-not (Test-Path "Backup/libgmp.vcxproj")) {
+      UpgradeVSProject -project_path "$smp_build_path/gmp/SMP/libgmp.vcxproj"
     }
-    MSBuildProject -project_path "$smp_build_path\gmp\SMP\libgmp.vcxproj" -configuration "${cmake_build_type}DLL"
-    Copy-Item "..\..\..\msvc\lib\${arch_short}\gmp$lib_postfix.lib" "$prefix_path\lib\" -Force
-    Copy-Item "..\..\..\msvc\bin\${arch_short}\gmp$lib_postfix.dll" "$prefix_path\bin\" -Force
-    Copy-Item "..\..\..\msvc\include\gmp*.h" "$prefix_path\include\" -Force
-    CreatePkgConfigFile -prefix $prefix_path_forward -name "gmp" -description "gmp" -url "https://gmplib.org/" -version $gmp_version -libs "-L`${libdir} -lgmp$lib_postfix" -cflags "-I`${includedir}" -output_file "$prefix_path\lib\pkgconfig\gmp.pc"
+    MSBuildProject -project_path "$smp_build_path/gmp/SMP/libgmp.vcxproj" -configuration "${cmake_build_type}DLL"
+    Copy-Item "../../../msvc/lib/${arch_short}/gmp$lib_postfix.lib" "$prefix_path/lib/" -Force
+    Copy-Item "../../../msvc/bin/${arch_short}/gmp$lib_postfix.dll" "$prefix_path/bin/" -Force
+    Copy-Item "../../../msvc/include/gmp*.h" "$prefix_path/include/" -Force
+    CreatePkgConfigFile -prefix $prefix_path -name "gmp" -description "gmp" -url "https://gmplib.org/" -version $gmp_version -libs "-L`${libdir} -lgmp$lib_postfix" -cflags "-I`${includedir}" -output_file "$prefix_path/lib/pkgconfig/gmp.pc"
   }
   finally {
     Pop-Location
@@ -1170,37 +1173,37 @@ function Build-Nettle {
   Push-Location $build_path
   try {
     CloneGitRepo -git_repo_name "nettle"
-    $smp_build_path = "$build_path\ShiftMediaProject\build"
+    $smp_build_path = "$build_path/ShiftMediaProject/build"
     if (-not (Test-Path $smp_build_path)) {
       New-Item -ItemType Directory -Path $smp_build_path -Force | Out-Null
     }
     Set-Location $smp_build_path
     if (-not (Test-Path "nettle")) {
-      RecursiveCopy "$downloads_path\nettle" "nettle"
+      RecursiveCopy "$downloads_path/nettle" "nettle"
       Set-Location "nettle"
       & git checkout "nettle_$nettle_version"
       Set-Location ..
     }
-    Set-Location "nettle\SMP"
-    if (-not (Test-Path "Backup\libnettle.vcxproj")) {
+    Set-Location "nettle/SMP"
+    if (-not (Test-Path "Backup/libnettle.vcxproj")) {
       UpgradeVSProject -project_path "libnettle.vcxproj"
     }
     MSBuildProject -project_path "libnettle.vcxproj" -configuration "${cmake_build_type}DLL"
-    Copy-Item "..\..\..\msvc\lib\${arch_short}\nettle$lib_postfix.lib" "$prefix_path\lib\" -Force
-    Copy-Item "..\..\..\msvc\bin\${arch_short}\nettle$lib_postfix.dll" "$prefix_path\bin\" -Force
-    if (-not (Test-Path "$prefix_path\include\nettle")) {
-      New-Item -ItemType Directory -Path "$prefix_path\include\nettle" -Force | Out-Null
+    Copy-Item "../../../msvc/lib/${arch_short}/nettle$lib_postfix.lib" "$prefix_path/lib/" -Force
+    Copy-Item "../../../msvc/bin/${arch_short}/nettle$lib_postfix.dll" "$prefix_path/bin/" -Force
+    if (-not (Test-Path "$prefix_path/include/nettle")) {
+      New-Item -ItemType Directory -Path "$prefix_path/include/nettle" -Force | Out-Null
     }
-    Copy-Item "..\..\..\msvc\include\nettle" "$prefix_path\include\" -Force
-    if (-not (Test-Path "Backup\libhogweed.vcxproj")) {
+    Copy-Item "../../../msvc/include/nettle" "$prefix_path/include/" -Force
+    if (-not (Test-Path "Backup/libhogweed.vcxproj")) {
       UpgradeVSProject -project_path "libhogweed.vcxproj"
     }
     MSBuildProject -project_path "libhogweed.vcxproj" -configuration "${cmake_build_type}DLL"
-    Copy-Item "..\..\..\msvc\lib\${arch_short}\hogweed$lib_postfix.lib" "$prefix_path\lib\" -Force
-    Copy-Item "..\..\..\msvc\bin\${arch_short}\hogweed$lib_postfix.dll" "$prefix_path\bin\" -Force
-    Copy-Item "..\..\..\msvc\include\nettle\*.h" "$prefix_path\include\nettle\" -Force
-    CreatePkgConfigFile -prefix $prefix_path_forward -name "nettle" -description "nettle" -url "https://www.lysator.liu.se/~nisse/nettle/" -version $nettle_version -libs "-L`${libdir} -lnettle${lib_postfix}" -cflags "-I`${includedir}" -output_file "$prefix_path\lib\pkgconfig\nettle.pc"
-    CreatePkgConfigFile -prefix $prefix_path_forward -name "hogweed" -description "hogweed" -url "https://www.lysator.liu.se/~nisse/nettle/" -version $nettle_version -libs "-L`${libdir} -lhogweed${lib_postfix}" -cflags "-I`${includedir}" -output_file "$prefix_path\lib\pkgconfig\hogweed.pc"
+    Copy-Item "../../../msvc/lib/${arch_short}/hogweed$lib_postfix.lib" "$prefix_path/lib/" -Force
+    Copy-Item "../../../msvc/bin/${arch_short}/hogweed$lib_postfix.dll" "$prefix_path/bin/" -Force
+    Copy-Item "../../../msvc/include/nettle/*.h" "$prefix_path/include/nettle/" -Force
+    CreatePkgConfigFile -prefix $prefix_path -name "nettle" -description "nettle" -url "https://www.lysator.liu.se/~nisse/nettle/" -version $nettle_version -libs "-L`${libdir} -lnettle${lib_postfix}" -cflags "-I`${includedir}" -output_file "$prefix_path/lib/pkgconfig/nettle.pc"
+    CreatePkgConfigFile -prefix $prefix_path -name "hogweed" -description "hogweed" -url "https://www.lysator.liu.se/~nisse/nettle/" -version $nettle_version -libs "-L`${libdir} -lhogweed${lib_postfix}" -cflags "-I`${includedir}" -output_file "$prefix_path/lib/pkgconfig/hogweed.pc"
   }
   finally {
     Pop-Location
@@ -1212,73 +1215,74 @@ function Build-GnuTLS {
   Push-Location $build_path
   try {
     CloneGitRepo -git_repo_name "gnutls"
-    $smp_build_path = "$build_path\ShiftMediaProject\build"
+    $smp_build_path = "$build_path/ShiftMediaProject/build"
     if (-not (Test-Path $smp_build_path)) {
       New-Item -ItemType Directory -Path $smp_build_path -Force | Out-Null
     }
     Set-Location $smp_build_path
     if (-not (Test-Path "gnutls")) {
-      RecursiveCopy "$downloads_path\gnutls" "gnutls"
+      RecursiveCopy "$downloads_path/gnutls" "gnutls"
       Set-Location "gnutls"
       & git checkout $gnutls_version
       Set-Location ..
     }
-    Set-Location "gnutls\SMP"
+    Set-Location "gnutls/SMP"
     # Create inject_zlib.props
     $props_content = @"
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemDefinitionGroup>
   <ClCompile>
-      <AdditionalIncludeDirectories>$prefix_path\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$prefix_path/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
   </ClCompile>
   <Link>
-      <AdditionalLibraryDirectories>$prefix_path\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$prefix_path/lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
   </Link>
   </ItemDefinitionGroup>
 </Project>
 "@
-    Set-Content -Path "$build_path\ShiftMediaProject\build\gnutls\SMP\inject_zlib.props" -Value $props_content
-    if (-not (Test-Path "$build_path\ShiftMediaProject\build\gnutls\SMP\Backup\libgnutls.vcxproj")) {
+    Set-Content -Path "$build_path/ShiftMediaProject/build/gnutls/SMP/inject_zlib.props" -Value $props_content
     (Get-Content "libgnutls.vcxproj") -replace 'zlib.lib', "z${lib_postfix}.lib" | Set-Content "libgnutls.vcxproj"
     (Get-Content "libgnutls.vcxproj") -replace 'zlibd.lib', "z${lib_postfix}.lib" | Set-Content "libgnutls.vcxproj"
+    if (-not (Test-Path "$build_path/ShiftMediaProject/build/gnutls/SMP/Backup/libgnutls.sln")) {
       UpgradeVSProject -project_path "libgnutls.sln"
     }
-    MSBuildProject -project_path "libgnutls.sln" -configuration "${cmake_build_type}DLL" -additional_args @("/p:ForceImportBeforeCppTargets=$build_path\ShiftMediaProject\build\gnutls\SMP\inject_zlib.props")
-    Copy-Item "..\..\..\msvc\lib\${arch_short}\gnutls$lib_postfix.lib" "$prefix_path\lib\" -Force
-    Copy-Item "..\..\..\msvc\bin\${arch_short}\gnutls$lib_postfix.dll" "$prefix_path\bin\" -Force
-    if (-not (Test-Path "$prefix_path\include\gnutls")) {
-      New-Item -ItemType Directory -Path "$prefix_path\include\gnutls" -Force | Out-Null
+    Write-Host "Building shared gnutls"
+    MSBuildProject -project_path "libgnutls.sln" -configuration "${cmake_build_type}DLL" -additional_args @("/p:ForceImportBeforeCppTargets=$build_path/ShiftMediaProject/build/gnutls/SMP/inject_zlib.props")
+    Copy-Item "../../../msvc/lib/${arch_short}/gnutls${lib_postfix}.lib" "$prefix_path/lib/" -Force
+    Copy-Item "../../../msvc/bin/${arch_short}/gnutls${lib_postfix}.dll" "$prefix_path/bin/" -Force
+    if (-not (Test-Path "$prefix_path/include/gnutls")) {
+      New-Item -ItemType Directory -Path "$prefix_path/include/gnutls" -Force | Out-Null
     }
-    Copy-Item "..\..\..\msvc\include\gnutls\*.h" "$prefix_path\include\gnutls\" -Force
+    Copy-Item "../../../msvc/include/gnutls/*.h" "$prefix_path/include/gnutls/" -Force
     # Workaround: Build static deps version
     Write-Host "Building static gnutls"
     & git clean -fd
     & git reset --hard HEAD
     (Get-Content "project_get_dependencies.bat") -replace 'PAUSE', 'ECHO.' | Set-Content "project_get_dependencies.bat"
-    & ".\project_get_dependencies.bat"
-    if (-not (Test-Path "..\..\gmp\SMP\Backup\libgmp.vcxproj")) {
-      UpgradeVSProject -project_path "..\..\gmp\SMP\libgmp.vcxproj"
+    & "./project_get_dependencies.bat"
+    if (-not (Test-Path "../../gmp/SMP/Backup/libgmp.vcxproj")) {
+      UpgradeVSProject -project_path "../../gmp/SMP/libgmp.vcxproj"
     }
-    if (-not (Test-Path "..\..\zlib\SMP\Backup\libzlib.vcxproj")) {
-      UpgradeVSProject -project_path "..\..\zlib\SMP\libzlib.vcxproj"
+    if (-not (Test-Path "../../zlib/SMP/Backup/libzlib.vcxproj")) {
+      UpgradeVSProject -project_path "../../zlib/SMP/libzlib.vcxproj"
     }
-    if (-not (Test-Path "..\..\nettle\SMP\Backup\libnettle.vcxproj")) {
-      UpgradeVSProject -project_path "..\..\nettle\SMP\libnettle.vcxproj"
+    if (-not (Test-Path "../../nettle/SMP/Backup/libnettle.vcxproj")) {
+      UpgradeVSProject -project_path "../../nettle/SMP/libnettle.vcxproj"
     }
-    if (-not (Test-Path "..\..\nettle\SMP\Backup\libhogweed.vcxproj")) {
-      UpgradeVSProject -project_path "..\..\nettle\SMP\libhogweed.vcxproj"
+    if (-not (Test-Path "../../nettle/SMP/Backup/libhogweed.vcxproj")) {
+      UpgradeVSProject -project_path "../../nettle/SMP/libhogweed.vcxproj"
     }
-    MSBuildProject -project_path "..\..\gmp\SMP\libgmp.vcxproj" -configuration "Release"
-    MSBuildProject -project_path "..\..\zlib\SMP\libzlib.vcxproj" -configuration "Release"
-    MSBuildProject -project_path "..\..\nettle\SMP\libnettle.vcxproj" -configuration "Release"
-    MSBuildProject -project_path "..\..\nettle\SMP\libhogweed.vcxproj" -configuration "Release"
     UpgradeVSProject -project_path "libgnutls.vcxproj"
+    MSBuildProject -project_path "../../gmp/SMP/libgmp.vcxproj" -configuration "Release"
+    MSBuildProject -project_path "../../zlib/SMP/libzlib.vcxproj" -configuration "Release"
+    MSBuildProject -project_path "../../nettle/SMP/libnettle.vcxproj" -configuration "Release"
+    MSBuildProject -project_path "../../nettle/SMP/libhogweed.vcxproj" -configuration "Release"
     MSBuildProject -project_path "libgnutls.vcxproj" -configuration "ReleaseDLLStaticDeps"
-    Remove-Item "$prefix_path\lib\gnutls$lib_postfix.lib" -Force -ErrorAction SilentlyContinue
-    Remove-Item "$prefix_path\bin\gnutls$lib_postfix.dll" -Force -ErrorAction SilentlyContinue
-    Copy-Item "..\..\..\msvc\lib\${arch_short}\gnutls.lib" "$prefix_path\lib\" -Force
-    Copy-Item "..\..\..\msvc\bin\${arch_short}\gnutls.dll" "$prefix_path\bin\" -Force
-    CreatePkgConfigFile -prefix $prefix_path_forward -name "gnutls" -description "gnutls" -url "https://www.gnutls.org/" -version $gnutls_version -libs "-L`${libdir} -lgnutls" -cflags "-I`${includedir}" -output_file "$prefix_path\lib\pkgconfig\gnutls.pc"
+    Remove-Item "$prefix_path/lib/gnutls$lib_postfix.lib" -Force -ErrorAction SilentlyContinue
+    Remove-Item "$prefix_path/bin/gnutls$lib_postfix.dll" -Force -ErrorAction SilentlyContinue
+    Copy-Item "../../../msvc/lib/${arch_short}/gnutls.lib" "$prefix_path/lib/" -Force
+    Copy-Item "../../../msvc/bin/${arch_short}/gnutls.dll" "$prefix_path/bin/" -Force
+    CreatePkgConfigFile -prefix $prefix_path -name "gnutls" -description "gnutls" -url "https://www.gnutls.org/" -version $gnutls_version -libs "-L`${libdir} -lgnutls" -cflags "-I`${includedir}" -output_file "$prefix_path/lib/pkgconfig/gnutls.pc"
   }
   finally {
     Pop-Location
@@ -1293,11 +1297,11 @@ function Build-LibPNG {
     DownloadPatch -patch_name "libpng-pkgconf.patch"
     ExtractPackage "libpng-$libpng_version.tar.gz"
     Set-Location "libpng-$libpng_version"
-    & patch -p1 -N -i "$downloads_path\libpng-pkgconf.patch" 2>&1 | Out-Null
+    & patch -p1 -N -i "$downloads_path/libpng-pkgconf.patch" 2>&1 | Out-Null
     CMakeBuild
-    Remove-Item "$prefix_path\lib\libpng16_static${lib_postfix}.lib" -Force -ErrorAction SilentlyContinue
+    Remove-Item "$prefix_path/lib/libpng16_static${lib_postfix}.lib" -Force -ErrorAction SilentlyContinue
     if ($build_type -eq "debug") {
-      Copy-Item "$prefix_path\lib\libpng16d.lib" "$prefix_path\lib\png16.lib" -Force
+      Copy-Item "$prefix_path/lib/libpng16d.lib" "$prefix_path/lib/png16.lib" -Force
     }
   }
   finally {
@@ -1316,8 +1320,8 @@ function Build-LibJPEG {
         "-DENABLE_SHARED=ON",
         "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
       )
-    Remove-Item "$prefix_path\lib\jpeg-static.lib" -Force -ErrorAction SilentlyContinue
-    Remove-Item "$prefix_path\lib\turbojpeg-static.lib" -Force -ErrorAction SilentlyContinue
+    Remove-Item "$prefix_path/lib/jpeg-static.lib" -Force -ErrorAction SilentlyContinue
+    Remove-Item "$prefix_path/lib/turbojpeg-static.lib" -Force -ErrorAction SilentlyContinue
   }
   finally {
     Pop-Location
@@ -1352,7 +1356,7 @@ function Build-BZip2 {
     DownloadPatch -patch_name "bzip2-cmake.patch"
     ExtractPackage "bzip2-$bzip2_version.tar.gz"
     Set-Location "bzip2-$bzip2_version"
-    & patch -p1 -N -i "$downloads_path\bzip2-cmake.patch" 2>&1 | Out-Null
+    & patch -p1 -N -i "$downloads_path/bzip2-cmake.patch" 2>&1 | Out-Null
     CMakeBuild -build_path "build2" -additional_args @("-DCMAKE_POLICY_VERSION_MINIMUM=3.5")
   }
   finally {
@@ -1397,18 +1401,18 @@ function Build-ICU4C {
   try {
     DownloadPackage -package_name "icu4c"
     ExtractPackage "icu4c-$icu4c_version-sources.tgz" "icu"
-    Set-Location "icu\source\allinone"
+    Set-Location "icu/source/allinone"
     MSBuildProject -project_path "allinone.sln" -configuration "$build_type" -additional_args @("-p:SkipUWP=true")
-    Set-Location "..\..\"
+    Set-Location "../../"
     if (-not (Test-Path "include")) {
       throw "Missing icu4c include dir"
     }
-    Copy-Item "include\unicode" "$prefix_path\include\" -Recurse -Force
-    Copy-Item "$libdir\*.*" "$prefix_path\lib\" -Force
-    Copy-Item "$bindir\*.*" "$prefix_path\bin\" -Force
-    CreatePkgConfigFile -prefix $prefix_path_forward -name "icu-uc" -description "International Components for Unicode: Common and Data libraries" -version $icu4c_version -libs "-L`${libdir} -licuuc$lib_postfix -licudt" -libs_private "-lpthread -lm" -output_file "$prefix_path\lib\pkgconfig\icu-uc.pc"
-    CreatePkgConfigFile -prefix $prefix_path_forward -name "icu-i18n" -description "International Components for Unicode: Stream and I/O Library" -version $icu4c_version -libs "-licuin$lib_postfix" -requires "icu-uc" -output_file "$prefix_path\lib\pkgconfig\icu-i18n.pc"
-    CreatePkgConfigFile -prefix $prefix_path_forward -name "icu-io" -description "International Components for Unicode: Stream and I/O Library" -version $icu4c_version -libs "-licuio$lib_postfix" -requires "icu-i18n" -output_file "$prefix_path\lib\pkgconfig\icu-io.pc"
+    Copy-Item "include/unicode" "$prefix_path/include/" -Recurse -Force
+    Copy-Item "$libdir/*.*" "$prefix_path/lib/" -Force
+    Copy-Item "$bindir/*.*" "$prefix_path/bin/" -Force
+    CreatePkgConfigFile -prefix $prefix_path -name "icu-uc" -description "International Components for Unicode: Common and Data libraries" -version $icu4c_version -libs "-L`${libdir} -licuuc$lib_postfix -licudt" -libs_private "-lpthread -lm" -output_file "$prefix_path/lib/pkgconfig/icu-uc.pc"
+    CreatePkgConfigFile -prefix $prefix_path -name "icu-i18n" -description "International Components for Unicode: Stream and I/O Library" -version $icu4c_version -libs "-licuin$lib_postfix" -requires "icu-uc" -output_file "$prefix_path/lib/pkgconfig/icu-i18n.pc"
+    CreatePkgConfigFile -prefix $prefix_path -name "icu-io" -description "International Components for Unicode: Stream and I/O Library" -version $icu4c_version -libs "-licuio$lib_postfix" -requires "icu-i18n" -output_file "$prefix_path/lib/pkgconfig/icu-io.pc"
   }
   finally {
     Pop-Location
@@ -1461,10 +1465,10 @@ function Build-Boost {
     if (Test-Path "bjam.exe") { Remove-Item "bjam.exe" -Force }
     if (Test-Path "stage") { Remove-Item "stage" -Recurse -Force }
     Write-Host "Running bootstrap.bat" -ForegroundColor Cyan
-    & .\bootstrap.bat msvc
+    & ./bootstrap.bat msvc
     if ($LASTEXITCODE -ne 0) { throw "Boost bootstrap failed" }
     Write-Host "Running b2.exe" -ForegroundColor Cyan
-    & .\b2.exe -a -q -j 4 -d1 --ignore-site-config --stagedir="stage" --layout="tagged" --prefix="$prefix_path" --exec-prefix="$prefix_path\bin" --libdir="$prefix_path\lib" --includedir="$prefix_path\include" --with-headers toolset=msvc architecture=$boost_architecture address-model=$arch_bits link=shared runtime-link=shared threadapi=win32 threading=multi variant=$build_type install
+    & ./b2.exe -a -q -j 4 -d1 --ignore-site-config --stagedir="stage" --layout="tagged" --prefix="$prefix_path" --exec-prefix="$prefix_path/bin" --libdir="$prefix_path/lib" --includedir="$prefix_path/include" --with-headers toolset=msvc architecture=$boost_architecture address-model=$arch_bits link=shared runtime-link=shared threadapi=win32 threading=multi variant=$build_type install
   }
   finally {
     Pop-Location
@@ -1489,7 +1493,7 @@ function Build-LibXML2 {
         "-DICU_ROOT=$prefix_path"
       )
     if ($build_type -eq "debug") {
-      Copy-Item "$prefix_path\lib\libxml2d.lib" "$prefix_path\lib\libxml2.lib" -Force
+      Copy-Item "$prefix_path/lib/libxml2d.lib" "$prefix_path/lib/libxml2.lib" -Force
     }
   }
   finally {
@@ -1517,7 +1521,7 @@ function Build-LibFFI {
   try {
     CloneGitRepo "libffi"
     if (-not (Test-Path "libffi")) {
-      RecursiveCopy "$downloads_path\libffi" "libffi"
+      RecursiveCopy "$downloads_path/libffi" "libffi"
     }
     Set-Location "libffi"
     MesonBuild
@@ -1578,11 +1582,11 @@ function Build-SQLite {
     Set-Location "sqlite-autoconf-$sqlite_version"
     & cl -DSQLITE_API="__declspec(dllexport)" -DSQLITE_ENABLE_FTS5 -DSQLITE_ENABLE_COLUMN_METADATA sqlite3.c -link -dll -out:sqlite3.dll
     & cl shell.c sqlite3.c -Fe:sqlite3.exe
-    Copy-Item "*.h" "$prefix_path\include\" -Force
-    Copy-Item "*.lib" "$prefix_path\lib\" -Force
-    Copy-Item "*.dll" "$prefix_path\bin\" -Force
-    Copy-Item "*.exe" "$prefix_path\bin\" -Force
-    CreatePkgConfigFile -prefix $prefix_path_forward -name "SQLite" -description "SQL database engine" -url "https://www.sqlite.org/" -version $sqlite_version -libs "-L`${libdir} -lsqlite3" -cflags "-I`${includedir}" -output_file "$prefix_path\lib\pkgconfig\sqlite3.pc"
+    Copy-Item "*.h" "$prefix_path/include/" -Force
+    Copy-Item "*.lib" "$prefix_path/lib/" -Force
+    Copy-Item "*.dll" "$prefix_path/bin/" -Force
+    Copy-Item "*.exe" "$prefix_path/bin/" -Force
+    CreatePkgConfigFile -prefix $prefix_path -name "SQLite" -description "SQL database engine" -url "https://www.sqlite.org/" -version $sqlite_version -libs "-L`${libdir} -lsqlite3" -cflags "-I`${includedir}" -output_file "$prefix_path/lib/pkgconfig/sqlite3.pc"
   }
   finally {
     Pop-Location
@@ -1664,7 +1668,7 @@ function Build-Freetype {
     $disable_harfbuzz = if ($with_harfbuzz) { "OFF" } else { "ON" }
     CMakeBuild -additional_args @("-DFT_DISABLE_HARFBUZZ=$disable_harfbuzz")
     if ($build_type -eq "debug") {
-      Copy-Item "$prefix_path\lib\freetyped.lib" "$prefix_path\lib\freetype.lib" -Force
+      Copy-Item "$prefix_path/lib/freetyped.lib" "$prefix_path/lib/freetype.lib" -Force
     }
   }
   finally {
@@ -1693,8 +1697,8 @@ function Build-Jasper {
   try {
     DownloadPackage -package_name "jasper"
     ExtractPackage "jasper-$jasper_version.tar.gz" -ignore_errors $true
-    Get-Content "jasper-$jasper_version\CMakeLists.txt" | Where-Object { $_ -notmatch '^\s*include\(InstallRequiredSystemLibraries\)\s*$' } | Set-Content "jasper-$jasper_version\CMakeLists.txt_"
-    Move-Item -Force "jasper-$jasper_version\CMakeLists.txt_" "jasper-$jasper_version\CMakeLists.txt"
+    Get-Content "jasper-$jasper_version/CMakeLists.txt" | Where-Object { $_ -notmatch '^\s*include\(InstallRequiredSystemLibraries\)\s*$' } | Set-Content "jasper-$jasper_version/CMakeLists.txt_"
+    Move-Item -Force "jasper-$jasper_version/CMakeLists.txt_" "jasper-$jasper_version/CMakeLists.txt"
     CMakeBuild -source_path "jasper-$jasper_version" -build_path "jasper-$jasper_version-build" -additional_args @(
       "-DJAS_ENABLE_JP2_CODEC=ON",
       "-DJAS_ENABLE_JPC_CODEC=ON",
@@ -1822,7 +1826,7 @@ function Build-WavPack {
           "-DWAVPACK_BUILD_WINAMP_PLUGIN=OFF",
           "-DWAVPACK_BUILD_COOLEDIT_PLUGIN=OFF"
         )
-    Copy-Item "$prefix_path\lib\wavpackdll.lib" "$prefix_path\lib\wavpack.lib" -Force
+    Copy-Item "$prefix_path/lib/wavpackdll.lib" "$prefix_path/lib/wavpack.lib" -Force
     Write-Host "wavpack built successfully!" -ForegroundColor Green
   }
   finally {
@@ -1856,7 +1860,7 @@ function Build-Opusfile {
     DownloadPatch -patch_name "opusfile-cmake.patch"
     ExtractPackage "opusfile-$opusfile_version.tar.gz"
     Push-Location opusfile-$opusfile_version
-    & patch -p1 -N -i $downloads_path\opusfile-cmake.patch
+    & patch -p1 -N -i $downloads_path/opusfile-cmake.patch
     CMakeBuild -additional_args @("-DCMAKE_POLICY_VERSION_MINIMUM=3.5")
     Write-Host "opusfile built successfully!" -ForegroundColor Green
   }
@@ -1876,8 +1880,8 @@ function Build-Speex {
     & patch -p1 -N -i "$downloads_path/speex-cmake.patch"
     CMakeBuild
     if ($build_type -eq "debug") {
-      Copy-Item "$prefix_path\lib\libspeexd.lib" "$prefix_path\lib\libspeex.lib" -Force
-      Copy-Item "$prefix_path\bin\libspeexd.dll" "$prefix_path\bin\libspeex.dll" -Force
+      Copy-Item "$prefix_path/lib/libspeexd.lib" "$prefix_path/lib/libspeex.lib" -Force
+      Copy-Item "$prefix_path/bin/libspeexd.dll" "$prefix_path/bin/libspeex.dll" -Force
     }
     Write-Host "speex built successfully!" -ForegroundColor Green
   }
@@ -1896,7 +1900,7 @@ function Build-MPG123 {
     CMakeBuild -source_path "ports/cmake" -build_path "build2" -additional_args @(
         "-DBUILD_PROGRAMS=OFF",
         "-DBUILD_LIBOUT123=OFF",
-        "-DYASM_ASSEMBLER=$prefix_path_forward/bin/vsyasm.exe"
+        "-DYASM_ASSEMBLER=$prefix_path/bin/vsyasm.exe"
       )
     Write-Host "mpg123 built successfully!" -ForegroundColor Green
   }
@@ -1916,13 +1920,13 @@ function Build-Lame {
     (Get-Content "Makefile.MSVC") -replace "MACHINE = /machine:.*", "MACHINE = /machine:${lame_machine}" | Set-Content "Makefile.MSVC"
     & nmake -f Makefile.MSVC MSVCVER=${lame_msvcver} libmp3lame.dll
     if ($LASTEXITCODE -ne 0) { throw "nmake build failed" }
-    New-Item -Path "$prefix_path\include\lame" -ItemType Directory -Force
-    Copy-Item "include\lame.h" "$prefix_path\include\lame\" -Force
-    Copy-Item "output\libmp3lame.lib" "$prefix_path\lib\" -Force
-    Copy-Item "output\libmp3lame.dll" "$prefix_path\bin\" -Force
-    Copy-Item "$prefix_path\lib\libmp3lame.lib" "$prefix_path\lib\mp3lame.lib" -Force
-    CreatePkgConfigFile -prefix $prefix_path_forward -name "lame" -description "encoder that converts audio to the MP3 file format." -url "https://lame.sourceforge.io/" -version $lame_version -libs "-L`${libdir} -lmp3lame" -cflags "-I`${includedir}" -output_file "$prefix_path\lib\pkgconfig\lame.pc"
-    Copy-Item "$prefix_path\lib\pkgconfig\lame.pc" "$prefix_path\lib\pkgconfig\libmp3lame.pc" -Force
+    New-Item -Path "$prefix_path/include/lame" -ItemType Directory -Force
+    Copy-Item "include/lame.h" "$prefix_path/include/lame/" -Force
+    Copy-Item "output/libmp3lame.lib" "$prefix_path/lib/" -Force
+    Copy-Item "output/libmp3lame.dll" "$prefix_path/bin/" -Force
+    Copy-Item "$prefix_path/lib/libmp3lame.lib" "$prefix_path/lib/mp3lame.lib" -Force
+    CreatePkgConfigFile -prefix $prefix_path -name "lame" -description "encoder that converts audio to the MP3 file format." -url "https://lame.sourceforge.io/" -version $lame_version -libs "-L`${libdir} -lmp3lame" -cflags "-I`${includedir}" -output_file "$prefix_path/lib/pkgconfig/lame.pc"
+    Copy-Item "$prefix_path/lib/pkgconfig/lame.pc" "$prefix_path/lib/pkgconfig/libmp3lame.pc" -Force
     Write-Host "lame built successfully!" -ForegroundColor Green
   }
   finally {
@@ -1938,9 +1942,9 @@ function Build-Twolame {
     DownloadPatch -patch_name "twolame.patch"
     ExtractPackage "twolame-$twolame_version.tar.gz"
     Set-Location twolame-$twolame_version
-    & patch -p1 -N -i "$downloads_path\twolame.patch"
+    & patch -p1 -N -i "$downloads_path/twolame.patch"
     Set-Location "win32"
-    if (-not (Test-Path "Backup\libtwolame_dll.sln")) {
+    if (-not (Test-Path "Backup/libtwolame_dll.sln")) {
       UpgradeVSProject "libtwolame_dll.sln"
     }
     Start-Sleep -Seconds 5
@@ -1948,11 +1952,11 @@ function Build-Twolame {
     (Get-Content "libtwolame_dll.vcxproj") -replace "Win32", "x64" | Set-Content "libtwolame_dll.vcxproj"
     (Get-Content "libtwolame_dll.vcxproj") -replace "MachineX86", "MachineX64" | Set-Content "libtwolame_dll.vcxproj"
     MSBuildProject -project_path "libtwolame_dll.sln" -configuration "$build_type"
-    Copy-Item "..\libtwolame\twolame.h" "$prefix_path\include\" -Force
-    Copy-Item "lib\libtwolame_dll.lib" "$prefix_path\lib\" -Force
-    Copy-Item "lib\*.dll" "$prefix_path\bin\" -Force
-    Copy-Item "$prefix_path\lib\libtwolame_dll.lib" "$prefix_path\lib\twolame${lib_postfix}.lib" -Force
-    CreatePkgConfigFile -prefix $prefix_path_forward -name "twolame" -description "optimised MPEG Audio Layer 2 (MP2) encoder based on tooLAME" -url "http://www.twolame.org/" -version $twolame_version -libs "-L`${libdir} -ltwolame${lib_postfix}" -cflags "-I`${includedir}" -output_file "$prefix_path\lib\pkgconfig\twolame.pc"
+    Copy-Item "../libtwolame/twolame.h" "$prefix_path/include/" -Force
+    Copy-Item "lib/libtwolame_dll.lib" "$prefix_path/lib/" -Force
+    Copy-Item "lib/*.dll" "$prefix_path/bin/" -Force
+    Copy-Item "$prefix_path/lib/libtwolame_dll.lib" "$prefix_path/lib/twolame${lib_postfix}.lib" -Force
+    CreatePkgConfigFile -prefix $prefix_path -name "twolame" -description "optimised MPEG Audio Layer 2 (MP2) encoder based on tooLAME" -url "http://www.twolame.org/" -version $twolame_version -libs "-L`${libdir} -ltwolame${lib_postfix}" -cflags "-I`${includedir}" -output_file "$prefix_path/lib/pkgconfig/twolame.pc"
     Write-Host "twolame built successfully!" -ForegroundColor Green
   }
   finally {
@@ -1970,15 +1974,15 @@ function Build-FFTW3 {
       New-Item -ItemType Directory -Path "fftw" -Force | Out-Null
     }
     Set-Location "fftw"
-    & 7z x "$downloads_path\fftw-$fftw_version-x64-$build_type.zip" -y
+    & 7z x "$downloads_path/fftw-$fftw_version-x64-$build_type.zip" -y
     if ($LASTEXITCODE -ne 0) { throw "7z extraction failed" }
     # Generate .lib file from .def
     & lib /machine:x64 /def:libfftw3-3.def
     if ($LASTEXITCODE -ne 0) { throw "lib.exe failed to create import library" }
-    Copy-Item "libfftw3-3.dll" "$prefix_path\bin\" -Force
-    Copy-Item "libfftw3-3.lib" "$prefix_path\lib\" -Force
-    Copy-Item "fftw3.h" "$prefix_path\include\" -Force
-    CreatePkgConfigFile -prefix $prefix_path_forward -name "fftw3" -description "discrete Fourier transform (DFT)" -url "https://www.fftw.org/" -version $fftw_version -libs "-L`${libdir} -lfftw3-3" -cflags "-I`${includedir}" -output_file "$prefix_path\lib\pkgconfig\fftw3.pc"
+    Copy-Item "libfftw3-3.dll" "$prefix_path/bin/" -Force
+    Copy-Item "libfftw3-3.lib" "$prefix_path/lib/" -Force
+    Copy-Item "fftw3.h" "$prefix_path/include/" -Force
+    CreatePkgConfigFile -prefix $prefix_path -name "fftw3" -description "discrete Fourier transform (DFT)" -url "https://www.fftw.org/" -version $fftw_version -libs "-L`${libdir} -lfftw3-3" -cflags "-I`${includedir}" -output_file "$prefix_path/lib/pkgconfig/fftw3.pc"
   }
   finally {
     Pop-Location
@@ -1998,9 +2002,9 @@ function Build-Musepack {
         "-DSHARED=ON",
         "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
       )
-    Copy-Item "build\libmpcdec\*.lib" "$prefix_path\lib\" -Force -ErrorAction SilentlyContinue
-    Copy-Item "build\libmpcdec\*.dll" "$prefix_path\bin\" -Force -ErrorAction SilentlyContinue
-    CreatePkgConfigFile -prefix $prefix_path_forward -name "MusePack" -description "MusePack" -url "https://www.musepack.net/" -version $musepack_version -libs "-L`${libdir} -lmpcdec" -cflags "-I`${includedir}" -output_file "$prefix_path\lib\pkgconfig\mpcdec.pc"
+    Copy-Item "build/libmpcdec/*.lib" "$prefix_path/lib/" -Force -ErrorAction SilentlyContinue
+    Copy-Item "build/libmpcdec/*.dll" "$prefix_path/bin/" -Force -ErrorAction SilentlyContinue
+    CreatePkgConfigFile -prefix $prefix_path -name "MusePack" -description "MusePack" -url "https://www.musepack.net/" -version $musepack_version -libs "-L`${libdir} -lmpcdec" -cflags "-I`${includedir}" -output_file "$prefix_path/lib/pkgconfig/mpcdec.pc"
   }
   finally {
     Pop-Location
@@ -2014,7 +2018,7 @@ function Build-LibOpenMPT {
     DownloadPackage -package_name "libopenmpt"
     DownloadPatch -patch_name "libopenmpt-cmake.patch"
     if (-not (Test-Path "libopenmpt")) {
-      $zip_file = "$downloads_path\libopenmpt-$libopenmpt_version+release.msvc.zip"
+      $zip_file = "$downloads_path/libopenmpt-$libopenmpt_version+release.msvc.zip"
       Write-Host "Extracting $zip_file" -ForegroundColor Cyan
       New-Item -ItemType Directory -Path "libopenmpt" -Force | Out-Null
       Push-Location "libopenmpt"
@@ -2046,7 +2050,7 @@ function Build-LibGME {
     Set-Location libgme-$libgme_version
     & patch -p1 -N -i $downloads_path/libgme-pkgconf.patch
     CMakeBuild
-    Remove-Item "$prefix_path\lib\gme-static.lib" -Force -ErrorAction SilentlyContinue
+    Remove-Item "$prefix_path/lib/gme-static.lib" -Force -ErrorAction SilentlyContinue
   }
   finally {
     Pop-Location
@@ -2091,17 +2095,17 @@ function Build-Faac {
     DownloadPatch -patch_name "faac-msvc.patch"
     ExtractPackage "faac-$faac_version.tar.gz" -package_dir "faac-faac-$faac_version"
     Set-Location "faac-faac-$faac_version"
-    & patch -p1 -N -i $downloads_path\faac-msvc.patch
-    Set-Location "project\msvc"
-    if (-not (Test-Path "Backup\faac.sln")) {
+    & patch -p1 -N -i $downloads_path/faac-msvc.patch
+    Set-Location "project/msvc"
+    if (-not (Test-Path "Backup/faac.sln")) {
       UpgradeVSProject "faac.sln"
     }
     MSBuildProject "faac.sln" -configuration "$build_type"
-    Copy-Item "..\..\include\*.h" "$prefix_path\include\" -Force
-    Copy-Item "bin\$build_type\libfaac_dll.lib" "$prefix_path\lib\" -Force
-    Copy-Item "bin\$build_type\libfaac_dll.dll" "$prefix_path\bin\" -Force
-    Copy-Item "$prefix_path\lib\libfaac_dll.lib" "$prefix_path\lib\faac.lib" -Force
-    CreatePkgConfigFile -prefix $prefix_path_forward -name "faac" -description "faac" -url "https://github.com/knik0/faac" -version $faac_version -libs "-L`${libdir} -lfaac" -cflags "-I`${includedir}" -output_file "$prefix_path\lib\pkgconfig\faac.pc"
+    Copy-Item "../../include/*.h" "$prefix_path/include/" -Force
+    Copy-Item "bin/$build_type/libfaac_dll.lib" "$prefix_path/lib/" -Force
+    Copy-Item "bin/$build_type/libfaac_dll.dll" "$prefix_path/bin/" -Force
+    Copy-Item "$prefix_path/lib/libfaac_dll.lib" "$prefix_path/lib/faac.lib" -Force
+    CreatePkgConfigFile -prefix $prefix_path -name "faac" -description "faac" -url "https://github.com/knik0/faac" -version $faac_version -libs "-L`${libdir} -lfaac" -cflags "-I`${includedir}" -output_file "$prefix_path/lib/pkgconfig/faac.pc"
   }
   finally {
     Pop-Location
@@ -2144,7 +2148,7 @@ function Build-LibBS2B {
     DownloadPatch -patch_name "libbs2b-msvc.patch"
     ExtractPackage "libbs2b-$libbs2b_version.tar.bz2"
     Set-Location libbs2b-$libbs2b_version
-    & patch -p1 -N -i $downloads_path\libbs2b-msvc.patch
+    & patch -p1 -N -i $downloads_path/libbs2b-msvc.patch
     CMakeBuild
   }
   finally {
@@ -2174,7 +2178,7 @@ function Build-FFMpeg {
   try {
     CloneGitRepo -git_repo_name "ffmpeg"
     if (-not (Test-Path "ffmpeg")) {
-      RecursiveCopy "$downloads_path\ffmpeg" "ffmpeg"
+      RecursiveCopy "$downloads_path/ffmpeg" "ffmpeg"
       Set-Location "ffmpeg"
       & git checkout "meson-$ffmpeg_version"
       & git checkout .
@@ -2218,7 +2222,7 @@ function Build-GStreamer {
     if ($gst_dev -eq "ON") {
       CloneGitRepo -repo_name "gstreamer"
       if (-not (Test-Path "gstreamer")) {
-        RecursiveCopy "$downloads_path\gstreamer\subprojects\gstreamer" "gstreamer"
+        RecursiveCopy "$downloads_path/gstreamer/subprojects/gstreamer" "gstreamer"
       }
       Set-Location "gstreamer"
     }
@@ -2253,7 +2257,7 @@ function Build-GstPluginsBase {
     if ($gst_dev -eq "ON") {
       CloneGitRepo -repo_name "gst-plugins-base"
       if (-not (Test-Path "gst-plugins-base")) {
-        RecursiveCopy "$downloads_path\gstreamer\subprojects\gst-plugins-base" "gst-plugins-base"
+        RecursiveCopy "$downloads_path/gstreamer/subprojects/gst-plugins-base" "gst-plugins-base"
       }
       Set-Location "gst-plugins-base"
     }
@@ -2303,7 +2307,7 @@ function Build-GstPluginsGood {
   try {
     if ($gst_dev -eq "ON") {
       if (-not (Test-Path "gst-plugins-good")) {
-        RecursiveCopy "$downloads_path\gstreamer\subprojects\gst-plugins-good" "gst-plugins-good"
+        RecursiveCopy "$downloads_path/gstreamer/subprojects/gst-plugins-good" "gst-plugins-good"
       }
       Set-Location "gst-plugins-good"
     }
@@ -2362,7 +2366,7 @@ function Build-GstPluginsBad {
   try {
     if ($gst_dev -eq "ON") {
       if (-not (Test-Path "gst-plugins-bad")) {
-        RecursiveCopy "$downloads_path\gstreamer\subprojects\gst-plugins-bad" "gst-plugins-bad"
+        RecursiveCopy "$downloads_path/gstreamer/subprojects/gst-plugins-bad" "gst-plugins-bad"
       }
       Set-Location "gst-plugins-bad"
     }
@@ -2419,7 +2423,7 @@ function Build-GstPluginsUgly {
   try {
     if ($gst_dev -eq "ON") {
       if (-not (Test-Path "gst-plugins-ugly")) {
-        RecursiveCopy "$downloads_path\gstreamer\subprojects\gst-plugins-ugly" "gst-plugins-ugly"
+        RecursiveCopy "$downloads_path/gstreamer/subprojects/gst-plugins-ugly" "gst-plugins-ugly"
       }
       Set-Location "gst-plugins-ugly"
     }
@@ -2450,7 +2454,7 @@ function Build-GstLibav {
   try {
     if ($gst_dev -eq "ON") {
       if (-not (Test-Path "gst-libav")) {
-        RecursiveCopy "$downloads_path\gstreamer\subprojects\gst-libav" "gst-libav"
+        RecursiveCopy "$downloads_path/gstreamer/subprojects/gst-libav" "gst-libav"
       }
       Set-Location "gst-libav"
     }
@@ -2476,7 +2480,7 @@ function Build-GstPluginsRs {
   try {
     CloneGitRepo -git_repo_name "gst-plugins-rs"
     if (-not (Test-Path "gst-plugins-rs")) {
-      RecursiveCopy "$downloads_path\gst-plugins-rs" "gst-plugins-rs"
+      RecursiveCopy "$downloads_path/gst-plugins-rs" "gst-plugins-rs"
     }
     Set-Location "gst-plugins-rs"
     MesonBuild `
@@ -2501,12 +2505,12 @@ function Build-SparseHash {
     DownloadPatch -patch_name "sparsehash-msvc.patch"
     ExtractPackage "sparsehash-$sparsehash_version.tar.gz"
     Set-Location "sparsehash-sparsehash-$sparsehash_version"
-    & patch -p1 -N -i "$downloads_path\sparsehash-msvc.patch"
-    Copy-Item "src\google" "$prefix_path\include\" -Recurse -Force
-    Copy-Item "src\sparsehash" "$prefix_path\include\" -Recurse -Force
-    Copy-Item "src\windows\sparsehash\internal\sparseconfig.h" "$prefix_path\include\sparsehash\internal\" -Force
-    Copy-Item "src\windows\google\sparsehash\sparseconfig.h" "$prefix_path\include\google\sparsehash\" -Force
-    CreatePkgConfigFile -prefix $prefix_path_forward -name "sparsehash" -description "C++ associative containers" -url "https://github.com/sparsehash/sparsehash" -version $sparsehash_version -cflags "-I`${includedir}" -output_file "$prefix_path\lib\pkgconfig\libsparsehash.pc"
+    & patch -p1 -N -i "$downloads_path/sparsehash-msvc.patch"
+    Copy-Item "src/google" "$prefix_path/include/" -Recurse -Force
+    Copy-Item "src/sparsehash" "$prefix_path/include/" -Recurse -Force
+    Copy-Item "src/windows/sparsehash/internal/sparseconfig.h" "$prefix_path/include/sparsehash/internal/" -Force
+    Copy-Item "src/windows/google/sparsehash/sparseconfig.h" "$prefix_path/include/google/sparsehash/" -Force
+    CreatePkgConfigFile -prefix $prefix_path -name "sparsehash" -description "C++ associative containers" -url "https://github.com/sparsehash/sparsehash" -version $sparsehash_version -cflags "-I`${includedir}" -output_file "$prefix_path/lib/pkgconfig/libsparsehash.pc"
   }
   finally {
     Pop-Location
@@ -2556,7 +2560,7 @@ function Build-QtBase {
   try {
     if ($qt_dev -eq "ON") {
       if (-not (Test-Path "qtbase")) {
-        RecursiveCopy "$downloads_path\qtbase" "qtbase"
+        RecursiveCopy "$downloads_path/qtbase" "qtbase"
       }
       Set-Location "qtbase"
     }
@@ -2577,7 +2581,7 @@ function Build-QtBase {
         "-DFEATURE_system_freetype=ON",
         "-DFEATURE_system_harfbuzz=ON",
         "-DFEATURE_system_sqlite=ON",
-        "-DICU_ROOT=$prefix_path_forward"
+        "-DICU_ROOT=$prefix_path"
       )
   }
   finally {
@@ -2591,7 +2595,7 @@ function Build-QtTools {
   try {
     if ($qt_dev -eq "ON") {
       if (-not (Test-Path "qttools")) {
-        RecursiveCopy "$downloads_path\qttools" "qttools"
+        RecursiveCopy "$downloads_path/qttools" "qttools"
       }
       Set-Location "qttools"
     }
@@ -2629,7 +2633,7 @@ function Build-QtImageFormats {
   try {
     if ($qt_dev -eq "ON") {
       if (-not (Test-Path "qtimageformats")) {
-        RecursiveCopy "$downloads_path\qtimageformats" "qtimageformats"
+        RecursiveCopy "$downloads_path/qtimageformats" "qtimageformats"
       }
       Set-Location "qtimageformats"
     }
@@ -2657,7 +2661,7 @@ function Build-QtGrpc {
   try {
     if ($qt_dev -eq "ON") {
       if (-not (Test-Path "qtgrpc")) {
-        RecursiveCopy "$downloads_path\qtgrpc" "qtgrpc"
+        RecursiveCopy "$downloads_path/qtgrpc" "qtgrpc"
       }
       Set-Location "qtgrpc"
     }
@@ -2682,7 +2686,7 @@ function Build-QtSparkle {
   try {
     CloneGitRepo -git_repo_name "qtsparkle"
     if (-not (Test-Path "qtsparkle")) {
-      RecursiveCopy "$downloads_path\qtsparkle" "qtsparkle"
+      RecursiveCopy "$downloads_path/qtsparkle" "qtsparkle"
     }
     Set-Location "qtsparkle"
     CMakeBuild -additional_args @(
@@ -2715,7 +2719,7 @@ function Build-Glew {
     DownloadPackage -package_name "glew"
     ExtractPackage "glew-$glew_version.tgz"
     Set-Location "glew-$glew_version"
-    CMakeBuild -source_path "build\cmake" -additional_args @("-DCMAKE_POLICY_VERSION_MINIMUM=3.5")
+    CMakeBuild -source_path "build/cmake" -additional_args @("-DCMAKE_POLICY_VERSION_MINIMUM=3.5")
   }
   finally {
     Pop-Location
@@ -2742,16 +2746,16 @@ function Build-TinySvcmdns {
   try {
     CloneGitRepo -git_repo_name "tinysvcmdns"
     if (-not (Test-Path "tinysvcmdns")) {
-      RecursiveCopy "$downloads_path\tinysvcmdns" "tinysvcmdns"
+      RecursiveCopy "$downloads_path/tinysvcmdns" "tinysvcmdns"
     }
     Set-Location "tinysvcmdns"
     CMakeBuild -additional_args @("-DCMAKE_POLICY_VERSION_MINIMUM=3.5")
-    Copy-Item "*.lib" "$prefix_path\lib\" -Force
-    Copy-Item "*.dll" "$prefix_path\bin\" -Force
-    Copy-Item "*.exe" "$prefix_path\bin\" -Force
-    Copy-Item "*.h" "$prefix_path\include\" -Force
-    Copy-Item "..\*.h" "$prefix_path\include\" -Force
-    CreatePkgConfigFile -prefix $prefix_path_forward -name "tinysvcmdns" -description "tinysvcmdns" -version "0.1" -cflags "-I`${includedir}" -libs "-L`${libdir} -ltinysvcmdns" -output_file "$prefix_path\lib\pkgconfig\tinysvcmdns.pc"
+    Copy-Item "*.lib" "$prefix_path/lib/" -Force
+    Copy-Item "*.dll" "$prefix_path/bin/" -Force
+    Copy-Item "*.exe" "$prefix_path/bin/" -Force
+    Copy-Item "*.h" "$prefix_path/include/" -Force
+    Copy-Item "../*.h" "$prefix_path/include/" -Force
+    CreatePkgConfigFile -prefix $prefix_path -name "tinysvcmdns" -description "tinysvcmdns" -version "0.1" -cflags "-I`${includedir}" -libs "-L`${libdir} -ltinysvcmdns" -output_file "$prefix_path/lib/pkgconfig/tinysvcmdns.pc"
   }
   finally {
     Pop-Location
@@ -2778,7 +2782,7 @@ function Build-PeUtil {
   try {
     CloneGitRepo -git_repo_name "pe-util"
     if (-not (Test-Path "pe-util")) {
-      RecursiveCopy "$downloads_path\pe-util" "pe-util"
+      RecursiveCopy "$downloads_path/pe-util" "pe-util"
     }
     Set-Location "pe-util"
     CMakeBuild -additional_args @("-DBUILD_COMMAND_LINE_TOOLS=OFF")
@@ -2794,7 +2798,7 @@ function Build-Strawberry {
   try {
     CloneGitRepo -git_repo_name "strawberry"
     if (-not (Test-Path "strawberry")) {
-      RecursiveCopy "$downloads_path\strawberry" "strawberry"
+      RecursiveCopy "$downloads_path/strawberry" "strawberry"
     }
     Set-Location "strawberry"
     $enable_win32_console = if ($build_type -eq "debug") { "ON" } else { "OFF" }
@@ -2822,23 +2826,23 @@ function Build-StrawberrySetup {
     New-Item -Path "StrawberrySetup" -ItemType Directory -Force | Out-Null
     Set-Location "StrawberrySetup"
     New-Item -Path @('platforms', 'styles', 'imageformats', 'tls', 'sqldrivers', 'gio-modules', 'gstreamer-plugins') -ItemType Directory -Force
-    Copy-Item -Path "$build_path\strawberry\build\strawberry.exe", `
-                    "$build_path\strawberry\build\strawberry.nsi", `
-                    "$build_path\strawberry\COPYING", `
-                    "$build_path\strawberry\dist\windows\*.ico", `
-                    "$build_path\strawberry\dist\windows\*.nsh" `
+    Copy-Item -Path "$build_path/strawberry/build/strawberry.exe", `
+                    "$build_path/strawberry/build/strawberry.nsi", `
+                    "$build_path/strawberry/COPYING", `
+                    "$build_path/strawberry/dist/windows/*.ico", `
+                    "$build_path/strawberry/dist/windows/*.nsh" `
                     "." -Force
-    Copy-Item "$prefix_path\plugins\platforms\*.dll" ".\platforms\" -Force
-    Copy-Item "$prefix_path\plugins\styles\*.dll" ".\styles\" -Force
-    Copy-Item "$prefix_path\plugins\imageformats\*.dll" ".\imageformats\" -Force
-    Copy-Item "$prefix_path\plugins\tls\*.dll" ".\tls\" -Force
-    Copy-Item "$prefix_path\plugins\sqldrivers\*.dll" ".\sqldrivers\" -Force
-    Copy-Item "$prefix_path\lib\gio\modules\*.dll" ".\gio-modules\" -Force
-    Copy-Item "$prefix_path\lib\gstreamer-1.0\*.dll" ".\gstreamer-plugins\" -Force
-    Copy-Item -Path "$prefix_path\bin\sqlite3.exe", "$prefix_path\bin\gst-*.exe" -Destination "." -Force
-    & "$PSScriptRoot\CopyDLLDependencies.ps1" -Copy -DestDir ".\" -InDir ".\" -InDir ".\platforms" -InDir ".\styles" -InDir ".\imageformats" -InDir ".\tls" -InDir ".\sqldrivers" -InDir ".\gio-modules" -InDir ".\gstreamer-plugins" -RecursiveSrcDir "$prefix_path\bin"
+    Copy-Item "$prefix_path/plugins/platforms/*.dll" "./platforms/" -Force
+    Copy-Item "$prefix_path/plugins/styles/*.dll" "./styles/" -Force
+    Copy-Item "$prefix_path/plugins/imageformats/*.dll" "./imageformats/" -Force
+    Copy-Item "$prefix_path/plugins/tls/*.dll" "./tls/" -Force
+    Copy-Item "$prefix_path/plugins/sqldrivers/*.dll" "./sqldrivers/" -Force
+    Copy-Item "$prefix_path/lib/gio/modules/*.dll" "./gio-modules/" -Force
+    Copy-Item "$prefix_path/lib/gstreamer-1.0/*.dll" "./gstreamer-plugins/" -Force
+    Copy-Item -Path "$prefix_path/bin/sqlite3.exe", "$prefix_path/bin/gst-*.exe" -Destination "." -Force
+    & "$PSScriptRoot/CopyDLLDependencies.ps1" -Copy -DestDir "./" -InDir "./" -InDir "./platforms" -InDir "./styles" -InDir "./imageformats" -InDir "./tls" -InDir "./sqldrivers" -InDir "./gio-modules" -InDir "./gstreamer-plugins" -RecursiveSrcDir "$prefix_path/bin"
     DownloadPackage -package_name "vc-redist-${arch_short}"
-    Copy-Item "$downloads_path\vc_redist.${arch_short}.exe" "." -Force
+    Copy-Item "$downloads_path/vc_redist.${arch_short}.exe" "." -Force
     & makensis strawberry.nsi
     Write-Host "Strawberry setup built successfully!" -ForegroundColor Green
   }
@@ -2857,86 +2861,86 @@ Write-Host ""
 try {
   $build_queue = @()
 
-  if (-not (Test-Path "$prefix_path\bin\pkgconf.exe")) { $build_queue += "pkgconf" }
-  if (-not (Test-Path "$prefix_path\bin\yasm.exe")) { $build_queue += "yasm" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\intl.pc")) { $build_queue += "proxy-libintl" }
-  if (-not (Test-Path "$prefix_path\lib\getopt.lib")) { $build_queue += "getopt-win" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\zlib.pc")) { $build_queue += "zlib" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\openssl.pc")) { $build_queue += "openssl" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\gmp.pc")) { $build_queue += "gmp" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\nettle.pc")) { $build_queue += "nettle" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\gnutls.pc")) { $build_queue += "gnutls" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\libpng.pc")) { $build_queue += "libpng" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\libjpeg.pc")) { $build_queue += "libjpeg" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\libpcre2-16.pc")) { $build_queue += "pcre2" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\bzip2.pc")) { $build_queue += "bzip2" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\liblzma.pc")) { $build_queue += "xz" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\libbrotlicommon.pc")) { $build_queue += "brotli" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\icu-uc.pc")) { $build_queue += "icu4c" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\pixman-1.pc")) { $build_queue += "pixman" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\expat.pc")) { $build_queue += "expat" }
-  if (-not (Test-Path "$prefix_path\include\boost\config.hpp")) { $build_queue += "boost" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\libxml-2.0.pc")) { $build_queue += "libxml2" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\libnghttp2.pc")) { $build_queue += "nghttp2" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\libffi.pc")) { $build_queue += "libffi" }
-  if (-not (Test-Path "$prefix_path\include\dlfcn.h")) { $build_queue += "dlfcn-win32" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\libpsl.pc")) { $build_queue += "libpsl" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\orc-0.4.pc")) { $build_queue += "orc" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\sqlite3.pc")) { $build_queue += "sqlite" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\glib-2.0.pc")) { $build_queue += "glib" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\libsoup-3.0.pc")) { $build_queue += "libsoup" }
-  if (-not (Test-Path "$prefix_path\lib\gio\modules\gioopenssl.lib")) { $build_queue += "glib-networking" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\freetype2.pc")) { $build_queue += "freetype" }
-  if (-not (Test-Path "$prefix_path\lib\harfbuzz*.lib")) { $build_queue += "harfbuzz" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\jasper.pc")) { $build_queue += "jasper" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\libtiff-4.pc")) { $build_queue += "tiff" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\libwebp.pc")) { $build_queue += "libwebp" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\ogg.pc")) { $build_queue += "ogg" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\vorbis.pc")) { $build_queue += "vorbis" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\flac.pc")) { $build_queue += "flac" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\wavpack.pc")) { $build_queue += "wavpack" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\opus.pc")) { $build_queue += "opus" }
-  if (-not (Test-Path "$prefix_path\bin\opusfile.dll")) { $build_queue += "opusfile" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\speex.pc")) { $build_queue += "speex" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\libmpg123.pc")) { $build_queue += "mpg123" }
-  if (-not (Test-Path "$prefix_path\lib\mp3lame.lib")) { $build_queue += "lame" }
-  if (-not (Test-Path "$prefix_path\lib\twolame${lib_postfix}.lib")) { $build_queue += "twolame" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\fftw3.pc")) { $build_queue += "fftw3" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\mpcdec.pc")) { $build_queue += "musepack" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\libopenmpt.pc")) { $build_queue += "libopenmpt" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\libgme.pc")) { $build_queue += "libgme" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\fdk-aac.pc")) { $build_queue += "fdk-aac" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\faad2.pc")) { $build_queue += "faad2" }
-  if (-not (Test-Path "$prefix_path\lib\faac.lib")) { $build_queue += "faac" }
-  if (-not (Test-Path "$prefix_path\include\utf8cpp\utf8.h")) { $build_queue += "utfcpp" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\taglib.pc")) { $build_queue += "taglib" }
-  if (-not (Test-Path "$prefix_path\lib\libbs2b.lib")) { $build_queue += "libbs2b" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\libebur128.pc")) { $build_queue += "libebur128" }
-  if (-not (Test-Path "$prefix_path\lib\avutil.lib")) { $build_queue += "ffmpeg" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\libchromaprint.pc")) { $build_queue += "chromaprint" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\gstreamer-1.0.pc")) { $build_queue += "gstreamer" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\gstreamer-base-1.0.pc")) { $build_queue += "gst-plugins-base" }
-  if (-not (Test-Path "$prefix_path\lib\gstreamer-1.0\gstflac.dll")) { $build_queue += "gst-plugins-good" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\gstreamer-plugins-bad-1.0.pc")) { $build_queue += "gst-plugins-bad" }
-  if (-not (Test-Path "$prefix_path\lib\gstreamer-1.0\gstasf.dll")) { $build_queue += "gst-plugins-ugly" }
-  if (-not (Test-Path "$prefix_path\lib\gstreamer-1.0\gstlibav.dll")) { $build_queue += "gst-libav" }
-  if (-not (Test-Path "$prefix_path\lib\gstreamer-1.0\gstspotify.dll")) { $build_queue += "gst-plugins-rs" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\absl_any.pc")) { $build_queue += "abseil-cpp" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\protobuf.pc")) { $build_queue += "protobuf" }
-  if (-not (Test-Path "$prefix_path\bin\qt-configure-module.bat")) { $build_queue += "qtbase" }
-  if (-not (Test-Path "$prefix_path\bin\lconvert.exe")) { $build_queue += "qttools" }
-  if (-not (Test-Path "$prefix_path\plugins\imageformats\qwebp${lib_postfix}.dll")) { $build_queue += "qtimageformats" }
-  if (-not (Test-Path "$prefix_path\lib\cmake\Qt6Protobuf\Qt6ProtobufConfig.cmake")) { $build_queue += "qtgrpc" }
-  if (-not (Test-Path "$prefix_path\lib\cmake\KDSingleApplication-qt6\KDSingleApplication-qt6Config.cmake")) { $build_queue += "kdsingleapplication" }
-  if (-not (Test-Path "$prefix_path\lib\cmake\qtsparkle-qt6\qtsparkle-qt6Config.cmake")) { $build_queue += "qtsparkle" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\libsparsehash.pc")) { $build_queue += "sparsehash" }
-  if (-not (Test-Path "$prefix_path\lib\cmake\glew\glew-config.cmake")) { $build_queue += "glew" }
-  if (-not (Test-Path "$prefix_path\lib\cmake\projectM4\projectM4Config.cmake")) { $build_queue += "libprojectm" }
-  if (-not (Test-Path "$prefix_path\lib\pkgconfig\tinysvcmdns.pc")) { $build_queue += "tinysvcmdns" }
-  if (-not (Test-Path "$prefix_path\lib\cmake\pe-parse\pe-parse-config.cmake")) { $build_queue += "pe-parse" }
-  if (-not (Test-Path "$prefix_path\bin\peldd.exe")) { $build_queue += "pe-util" }
-  if (-not (Test-Path "$build_path\strawberry\build\strawberry.exe")) { $build_queue += "strawberry" }
-  if (-not (Test-Path "$build_path\StrawberrySetup\StrawberrySetup*.exe")) { $build_queue += "strawberry-setup" }
+  if (-not (Test-Path "$prefix_path/bin/pkgconf.exe")) { $build_queue += "pkgconf" }
+  if (-not (Test-Path "$prefix_path/bin/yasm.exe")) { $build_queue += "yasm" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/intl.pc")) { $build_queue += "proxy-libintl" }
+  if (-not (Test-Path "$prefix_path/lib/getopt.lib")) { $build_queue += "getopt-win" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/zlib.pc")) { $build_queue += "zlib" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/openssl.pc")) { $build_queue += "openssl" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/gmp.pc")) { $build_queue += "gmp" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/nettle.pc")) { $build_queue += "nettle" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/gnutls.pc")) { $build_queue += "gnutls" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/libpng.pc")) { $build_queue += "libpng" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/libjpeg.pc")) { $build_queue += "libjpeg" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/libpcre2-16.pc")) { $build_queue += "pcre2" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/bzip2.pc")) { $build_queue += "bzip2" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/liblzma.pc")) { $build_queue += "xz" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/libbrotlicommon.pc")) { $build_queue += "brotli" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/icu-uc.pc")) { $build_queue += "icu4c" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/pixman-1.pc")) { $build_queue += "pixman" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/expat.pc")) { $build_queue += "expat" }
+  if (-not (Test-Path "$prefix_path/include/boost/config.hpp")) { $build_queue += "boost" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/libxml-2.0.pc")) { $build_queue += "libxml2" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/libnghttp2.pc")) { $build_queue += "nghttp2" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/libffi.pc")) { $build_queue += "libffi" }
+  if (-not (Test-Path "$prefix_path/include/dlfcn.h")) { $build_queue += "dlfcn-win32" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/libpsl.pc")) { $build_queue += "libpsl" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/orc-0.4.pc")) { $build_queue += "orc" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/sqlite3.pc")) { $build_queue += "sqlite" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/glib-2.0.pc")) { $build_queue += "glib" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/libsoup-3.0.pc")) { $build_queue += "libsoup" }
+  if (-not (Test-Path "$prefix_path/lib/gio/modules/gioopenssl.lib")) { $build_queue += "glib-networking" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/freetype2.pc")) { $build_queue += "freetype" }
+  if (-not (Test-Path "$prefix_path/lib/harfbuzz*.lib")) { $build_queue += "harfbuzz" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/jasper.pc")) { $build_queue += "jasper" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/libtiff-4.pc")) { $build_queue += "tiff" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/libwebp.pc")) { $build_queue += "libwebp" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/ogg.pc")) { $build_queue += "ogg" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/vorbis.pc")) { $build_queue += "vorbis" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/flac.pc")) { $build_queue += "flac" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/wavpack.pc")) { $build_queue += "wavpack" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/opus.pc")) { $build_queue += "opus" }
+  if (-not (Test-Path "$prefix_path/bin/opusfile.dll")) { $build_queue += "opusfile" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/speex.pc")) { $build_queue += "speex" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/libmpg123.pc")) { $build_queue += "mpg123" }
+  if (-not (Test-Path "$prefix_path/lib/mp3lame.lib")) { $build_queue += "lame" }
+  if (-not (Test-Path "$prefix_path/lib/twolame${lib_postfix}.lib")) { $build_queue += "twolame" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/fftw3.pc")) { $build_queue += "fftw3" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/mpcdec.pc")) { $build_queue += "musepack" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/libopenmpt.pc")) { $build_queue += "libopenmpt" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/libgme.pc")) { $build_queue += "libgme" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/fdk-aac.pc")) { $build_queue += "fdk-aac" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/faad2.pc")) { $build_queue += "faad2" }
+  if (-not (Test-Path "$prefix_path/lib/faac.lib")) { $build_queue += "faac" }
+  if (-not (Test-Path "$prefix_path/include/utf8cpp/utf8.h")) { $build_queue += "utfcpp" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/taglib.pc")) { $build_queue += "taglib" }
+  if (-not (Test-Path "$prefix_path/lib/libbs2b.lib")) { $build_queue += "libbs2b" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/libebur128.pc")) { $build_queue += "libebur128" }
+  if (-not (Test-Path "$prefix_path/lib/avutil.lib")) { $build_queue += "ffmpeg" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/libchromaprint.pc")) { $build_queue += "chromaprint" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/gstreamer-1.0.pc")) { $build_queue += "gstreamer" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/gstreamer-base-1.0.pc")) { $build_queue += "gst-plugins-base" }
+  if (-not (Test-Path "$prefix_path/lib/gstreamer-1.0/gstflac.dll")) { $build_queue += "gst-plugins-good" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/gstreamer-plugins-bad-1.0.pc")) { $build_queue += "gst-plugins-bad" }
+  if (-not (Test-Path "$prefix_path/lib/gstreamer-1.0/gstasf.dll")) { $build_queue += "gst-plugins-ugly" }
+  if (-not (Test-Path "$prefix_path/lib/gstreamer-1.0/gstlibav.dll")) { $build_queue += "gst-libav" }
+  if (-not (Test-Path "$prefix_path/lib/gstreamer-1.0/gstspotify.dll")) { $build_queue += "gst-plugins-rs" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/absl_any.pc")) { $build_queue += "abseil-cpp" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/protobuf.pc")) { $build_queue += "protobuf" }
+  if (-not (Test-Path "$prefix_path/bin/qt-configure-module.bat")) { $build_queue += "qtbase" }
+  if (-not (Test-Path "$prefix_path/bin/lconvert.exe")) { $build_queue += "qttools" }
+  if (-not (Test-Path "$prefix_path/plugins/imageformats/qwebp${lib_postfix}.dll")) { $build_queue += "qtimageformats" }
+  if (-not (Test-Path "$prefix_path/lib/cmake/Qt6Protobuf/Qt6ProtobufConfig.cmake")) { $build_queue += "qtgrpc" }
+  if (-not (Test-Path "$prefix_path/lib/cmake/KDSingleApplication-qt6/KDSingleApplication-qt6Config.cmake")) { $build_queue += "kdsingleapplication" }
+  if (-not (Test-Path "$prefix_path/lib/cmake/qtsparkle-qt6/qtsparkle-qt6Config.cmake")) { $build_queue += "qtsparkle" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/libsparsehash.pc")) { $build_queue += "sparsehash" }
+  if (-not (Test-Path "$prefix_path/lib/cmake/glew/glew-config.cmake")) { $build_queue += "glew" }
+  if (-not (Test-Path "$prefix_path/lib/cmake/projectM4/projectM4Config.cmake")) { $build_queue += "libprojectm" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/tinysvcmdns.pc")) { $build_queue += "tinysvcmdns" }
+  if (-not (Test-Path "$prefix_path/lib/cmake/pe-parse/pe-parse-config.cmake")) { $build_queue += "pe-parse" }
+  if (-not (Test-Path "$prefix_path/bin/peldd.exe")) { $build_queue += "pe-util" }
+  if (-not (Test-Path "$build_path/strawberry/build/strawberry.exe")) { $build_queue += "strawberry" }
+  if (-not (Test-Path "$build_path/StrawberrySetup/StrawberrySetup*.exe")) { $build_queue += "strawberry-setup" }
 
   if ($build_queue.Count -eq 0) {
     Write-Host "All dependencies already built!" -ForegroundColor Green
