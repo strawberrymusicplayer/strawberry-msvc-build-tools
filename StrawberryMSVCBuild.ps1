@@ -236,7 +236,6 @@ Write-Host "  Build Architecture:  $arch"
 Write-Host "  CMake build type:    $cmake_build_type"
 Write-Host "  Meson build type:    $meson_build_type"
 Write-Host "  Prefix path:         $prefix_path"
-Write-Host "  Prefix path forward: $prefix_path"
 Write-Host ""
 
 # Create directories
