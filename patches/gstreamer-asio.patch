@@ -1,0 +1,609 @@
+diff --git a/sys/asio/gstasioobject.cpp b/sys/asio/gstasioobject.cpp
+index b738465..46fde57 100644
+--- a/sys/asio/gstasioobject.cpp
++++ b/sys/asio/gstasioobject.cpp
+@@ -328,6 +328,18 @@ struct _GstAsioObject
+   int slot_id;
+ 
+   gboolean occupy_all_channels;
++
++  /* Latencies reported by driver, in frames. Re-queried when dirty */
++  gint latencies_dirty;
++  glong cached_input_latency;
++  glong cached_output_latency;
++
++  /* Some drivers call buffer switch callback several times back to back
++   * on start to pre-fill their internal queue. The number of such callbacks
++   * is the number of buffers queued in the driver */
++  gint64 first_callback_time;
++  gboolean counting_prefill;
++  gint num_prefill_buffers;
+ };
+ 
+ static void gst_asio_object_constructed (GObject * object);
+@@ -374,6 +386,7 @@ gst_asio_object_init (GstAsioObject * self)
+       FALSE, sizeof (ASIOSampleRate));
+ 
+   self->slot_id = -1;
++  self->latencies_dirty = 1;
+ }
+ 
+ static void
+@@ -607,7 +620,8 @@ gst_asio_object_thread_func (GstAsioObject * self)
+   GstAsioDeviceInfo *device_info = self->device_info;
+   /* FIXME: check more sample rate */
+   static ASIOSampleRate sample_rate_to_check[] = {
+-    48000.0, 44100.0, 192000.0, 96000.0, 88200.0,
++    48000.0, 44100.0, 192000.0, 96000.0, 88200.0, 176400.0, 352800.0,
++    384000.0, 32000.0, 22050.0, 16000.0, 11025.0, 8000.0,
+   };
+ 
+   g_assert (device_info);
+@@ -922,10 +936,31 @@ gst_asio_object_create_caps_from_channel_info (GstAsioObject * self,
+   /* Actually we are non-interleaved, but element will interlave data */
+   caps_str = "audio/x-raw, layout = (string) interleaved, ";
+   caps_str += "format = (string) " + std::string (fmt_str) + ", ";
+-  /* use fixated sample rate, otherwise get_caps/set_sample_rate() might
+-   * be racy in case that multiple sink/src are used */
+-  caps_str +=
+-      "rate = (int) " + std::to_string ((gint) self->sample_rate) + ", ";
++  /* When a single sink is the only user of the device, expose every supported
++   * sample rate so that upstream doesn't need to resample, and the rate will
++   * be switched in set_sample_rate(). Otherwise use fixated sample rate,
++   * since get_caps/set_sample_rate() might be racy in case that multiple
++   * sink/src are used */
++  g_mutex_lock (&self->api_lock);
++  if (!self->src_client_callbacks && !self->loopback_client_callbacks &&
++      g_list_length (self->sink_client_callbacks) <= 1 &&
++      self->supported_sample_rates->len > 1) {
++    /* Current rate first, so that it's preferred if upstream is flexible */
++    caps_str += "rate = (int) { " + std::to_string ((gint) self->sample_rate);
++    for (guint i = 0; i < self->supported_sample_rates->len; i++) {
++      ASIOSampleRate rate = g_array_index (self->supported_sample_rates,
++          ASIOSampleRate, i);
++      if (rate == self->sample_rate)
++        continue;
++
++      caps_str += ", " + std::to_string ((gint) rate);
++    }
++    caps_str += " }, ";
++  } else {
++    caps_str +=
++        "rate = (int) " + std::to_string ((gint) self->sample_rate) + ", ";
++  }
++  g_mutex_unlock (&self->api_lock);
+ 
+   if (max_num_channels == min_num_channels)
+     caps_str += "channels = (int) " + std::to_string (max_num_channels);
+@@ -1426,6 +1461,7 @@ gst_asio_object_create_buffers (GstAsioObject * obj,
+     *buffer_size = buf_size;
+ 
+   obj->state = GST_ASIO_OBJECT_STATE_PREPARED;
++  g_atomic_int_set (&obj->latencies_dirty, 1);
+ 
+   g_mutex_unlock (&obj->api_lock);
+ 
+@@ -1468,6 +1504,43 @@ gst_asio_object_get_latencies (GstAsioObject * obj, glong * input_latency,
+   return !err;
+ }
+ 
++guint
++gst_asio_object_get_num_prefill_buffers (GstAsioObject * obj)
++{
++  g_return_val_if_fail (GST_IS_ASIO_OBJECT (obj), 0);
++
++  return (guint) g_atomic_int_get (&obj->num_prefill_buffers);
++}
++
++gboolean
++gst_asio_object_get_cached_latencies (GstAsioObject * obj,
++    glong * input_latency, glong * output_latency)
++{
++  g_return_val_if_fail (GST_IS_ASIO_OBJECT (obj), FALSE);
++
++  if (g_atomic_int_compare_and_exchange (&obj->latencies_dirty, 1, 0)) {
++    glong in_latency = 0, out_latency = 0;
++
++    if (gst_asio_object_get_latencies (obj, &in_latency, &out_latency)) {
++      GST_INFO_OBJECT (obj, "Input latency %ld, output latency %ld",
++          in_latency, out_latency);
++      obj->cached_input_latency = MAX (in_latency, 0);
++      obj->cached_output_latency = MAX (out_latency, 0);
++    } else {
++      GST_WARNING_OBJECT (obj, "Failed to query latencies");
++      obj->cached_input_latency = 0;
++      obj->cached_output_latency = 0;
++    }
++  }
++
++  if (input_latency)
++    *input_latency = obj->cached_input_latency;
++  if (output_latency)
++    *output_latency = obj->cached_output_latency;
++
++  return TRUE;
++}
++
+ typedef struct
+ {
+   ASIOSampleRate sample_rate;
+@@ -1538,9 +1611,61 @@ static void
+ gst_asio_object_set_sample_rate_async (GstAsioObject * self,
+     SampleRateAsyncData * data)
+ {
++  /* Some drivers don't allow changing sample rate while running. Stop the
++   * driver, it will be restarted on the next gst_asio_object_start() call */
++  if (self->state == GST_ASIO_OBJECT_STATE_RUNNING) {
++    GST_DEBUG_OBJECT (self, "Stopping driver to change sample rate");
++    self->asio_handle->stop ();
++    self->state = GST_ASIO_OBJECT_STATE_PREPARED;
++  }
++
+   data->err = self->asio_handle->setSampleRate (data->sample_rate);
+-  if (!data->err)
+-    self->sample_rate = data->sample_rate;
++  if (data->err) {
++    GST_ERROR_OBJECT (self, "Failed to set sample rate %.1lf, ret %ld",
++        data->sample_rate, data->err);
++    return;
++  }
++
++  GST_INFO_OBJECT (self, "Sample rate changed %.1lf -> %.1lf",
++      self->sample_rate, data->sample_rate);
++  self->sample_rate = data->sample_rate;
++
++  if (!self->buffer_infos)
++    return;
++
++  /* Some drivers fail to start unless buffers are re-created after sample
++   * rate change, and buffer size constraints might depend on sample rate */
++  self->asio_handle->disposeBuffers ();
++
++  glong min_size, max_size, preferred_size, granularity;
++  if (self->asio_handle->getBufferSize (&min_size, &max_size,
++          &preferred_size, &granularity) == 0) {
++    GST_INFO_OBJECT (self, "min-buffer-size %ld, max-buffer-size %ld, "
++        "preferred-buffer-size %ld, buffer-size-granularity %ld",
++        min_size, max_size, preferred_size, granularity);
++    self->min_buffer_size = min_size;
++    self->max_buffer_size = max_size;
++    self->preferred_buffer_size = preferred_size;
++    self->buffer_size_granularity = granularity;
++  }
++
++  glong buf_size = self->selected_buffer_size;
++  if (buf_size < self->min_buffer_size || buf_size > self->max_buffer_size)
++    buf_size = self->preferred_buffer_size;
++
++  data->err = gst_asio_object_create_buffers_real (self, &buf_size);
++  if (data->err) {
++    GST_ERROR_OBJECT (self, "Failed to re-create buffers, ret %ld",
++        data->err);
++    g_clear_pointer (&self->buffer_infos, g_free);
++    self->num_allocated_buffers = 0;
++    self->state = GST_ASIO_OBJECT_STATE_INITIALIZED;
++    return;
++  }
++
++  GST_INFO_OBJECT (self, "Re-created buffers with size %ld", buf_size);
++  self->selected_buffer_size = buf_size;
++  g_atomic_int_set (&self->latencies_dirty, 1);
+ }
+ 
+ gboolean
+@@ -1548,7 +1673,6 @@ gst_asio_object_set_sample_rate (GstAsioObject * obj,
+     ASIOSampleRate sample_rate)
+ {
+   SampleRateAsyncData data = { 0 };
+-  ASIOError err = 0;
+ 
+   g_return_val_if_fail (GST_IS_ASIO_OBJECT (obj), FALSE);
+   g_assert (obj->asio_handle);
+@@ -1559,18 +1683,22 @@ gst_asio_object_set_sample_rate (GstAsioObject * obj,
+     return TRUE;
+   }
+ 
+-  if (!obj->device_info->sta_model) {
+-    err = obj->asio_handle->setSampleRate (sample_rate);
+-    if (!err)
+-      obj->sample_rate = sample_rate;
+-
++  if (obj->src_client_callbacks || obj->loopback_client_callbacks ||
++      obj->sink_client_callbacks) {
++    GST_ERROR_OBJECT (obj, "Cannot change sample rate %.1lf -> %.1lf, "
++        "device is in use", obj->sample_rate, sample_rate);
+     g_mutex_unlock (&obj->api_lock);
+-    return !err;
++    return FALSE;
+   }
+ 
+   data.sample_rate = sample_rate;
+-  gst_asio_object_thread_add (obj,
+-      (GstAsioObjectThreadFunc) gst_asio_object_set_sample_rate_async, &data);
++  if (!obj->device_info->sta_model) {
++    gst_asio_object_set_sample_rate_async (obj, &data);
++  } else {
++    gst_asio_object_thread_add (obj,
++        (GstAsioObjectThreadFunc) gst_asio_object_set_sample_rate_async,
++        &data);
++  }
+   g_mutex_unlock (&obj->api_lock);
+ 
+   return !data.err;
+@@ -1611,10 +1739,11 @@ gst_asio_object_messages (GstAsioObject * self,
+   switch (selector) {
+     case kAsioSelectorSupported:
+       if (value == kAsioResetRequest || value == kAsioEngineVersion ||
+-          value == kAsioResyncRequest || value == kAsioLatenciesChanged ||
++          value == kAsioResyncRequest ||
+           value == kAsioSupportsTimeCode || value == kAsioSupportsInputMonitor)
+         return 0;
+-      else if (value == kAsioSupportsTimeInfo)
++      else if (value == kAsioSupportsTimeInfo ||
++          value == kAsioLatenciesChanged)
+         return 1;
+       GST_WARNING_OBJECT (self, "Unsupported ASIO selector: %li", value);
+       break;
+@@ -1629,9 +1758,9 @@ gst_asio_object_messages (GstAsioObject * self,
+       GST_WARNING_OBJECT (self, "Unsupported ASIO message: kAsioResyncRequest");
+       break;
+     case kAsioLatenciesChanged:
+-      GST_WARNING_OBJECT (self,
+-          "Unsupported ASIO message: kAsioLatenciesChanged");
+-      break;
++      GST_INFO_OBJECT (self, "Latencies changed");
++      g_atomic_int_set (&self->latencies_dirty, 1);
++      return 1;
+     case kAsioEngineVersion:
+       /* We target the ASIO v2 API, which includes ASIOOutputReady() */
+       return 2;
+@@ -1652,31 +1781,30 @@ gst_asio_object_messages (GstAsioObject * self,
+ 
+ #define PACK_ASIO_64(v) ((v).lo | ((guint64)((v).hi) << 32))
+ 
+-static ASIOTime *
+-gst_asio_object_buffer_switch_time_info (GstAsioObject * self,
+-    ASIOTime * time_info, glong index, ASIOBool process_now)
++static guint
++gst_asio_object_get_sample_size (GstAsioObject * self, glong channel)
+ {
+-  GList *iter;
++  GstAudioFormat fmt;
+ 
+-  if (time_info) {
+-    guint64 pos;
+-    guint64 system_time;
++  if (channel < 0 || channel >= self->max_num_output_channels)
++    return 0;
+ 
+-    pos = PACK_ASIO_64 (time_info->timeInfo.samplePosition);
+-    system_time = PACK_ASIO_64 (time_info->timeInfo.systemTime);
++  fmt = gst_asio_sample_type_to_gst (self->output_channel_infos[channel].type);
++  if (fmt == GST_AUDIO_FORMAT_UNKNOWN)
++    return 0;
+ 
+-    GST_TRACE_OBJECT (self, "Sample Position: %" G_GUINT64_FORMAT
+-        ", System Time: %" GST_TIME_FORMAT, pos, GST_TIME_ARGS (system_time));
+-  }
++  return GST_AUDIO_FORMAT_INFO_WIDTH (gst_audio_format_get_info (fmt)) >> 3;
++}
+ 
+-  g_mutex_lock (&self->api_lock);
+-  if (!self->src_client_callbacks && !self->sink_client_callbacks &&
+-      !self->loopback_client_callbacks) {
+-    GST_WARNING_OBJECT (self, "No installed client callback");
+-    goto out;
+-  }
++/* Must be called with api_lock taken */
++static void
++gst_asio_object_dispatch_callbacks (GstAsioObject * self, GList ** list,
++    glong index, ASIOTime * time_info)
++{
++  GList *iter = *list;
+ 
+-  for (iter = self->src_client_callbacks; iter;) {
++  while (iter) {
++    GList *next = g_list_next (iter);
+     GstAsioObjectCallbacksPrivate *cb =
+         (GstAsioObjectCallbacksPrivate *) iter->data;
+     gboolean ret;
+@@ -1688,63 +1816,78 @@ gst_asio_object_buffer_switch_time_info (GstAsioObject * self,
+     if (!ret) {
+       GST_INFO_OBJECT (self, "Remove callback for id %" G_GUINT64_FORMAT,
+           cb->callback_id);
+-      GList *to_remove = iter;
+-      iter = g_list_next (iter);
+-
+-      g_free (to_remove->data);
+-      g_list_free (to_remove);
++      g_free (cb);
++      *list = g_list_delete_link (*list, iter);
+     }
+ 
+-    iter = g_list_next (iter);
++    iter = next;
+   }
++}
+ 
+-  for (iter = self->sink_client_callbacks; iter;) {
+-    GstAsioObjectCallbacksPrivate *cb =
+-        (GstAsioObjectCallbacksPrivate *) iter->data;
+-    gboolean ret;
++static ASIOTime *
++gst_asio_object_buffer_switch_time_info (GstAsioObject * self,
++    ASIOTime * time_info, glong index, ASIOBool process_now)
++{
+ 
+-    ret = cb->callbacks.buffer_switch (self, index, self->buffer_infos,
+-        self->num_allocated_buffers, self->input_channel_infos,
+-        self->output_channel_infos, self->sample_rate,
+-        self->selected_buffer_size, time_info, cb->callbacks.user_data);
+-    if (!ret) {
+-      GST_INFO_OBJECT (self, "Remove callback for id %" G_GUINT64_FORMAT,
+-          cb->callback_id);
+-      GList *to_remove = iter;
+-      iter = g_list_next (iter);
++  if (time_info) {
++    guint64 pos;
++    guint64 system_time;
+ 
+-      g_free (to_remove->data);
+-      g_list_free (to_remove);
+-    }
++    pos = PACK_ASIO_64 (time_info->timeInfo.samplePosition);
++    system_time = PACK_ASIO_64 (time_info->timeInfo.systemTime);
+ 
+-    iter = g_list_next (iter);
++    GST_TRACE_OBJECT (self, "Sample Position: %" G_GUINT64_FORMAT
++        ", System Time: %" GST_TIME_FORMAT, pos, GST_TIME_ARGS (system_time));
+   }
+ 
+-  for (iter = self->loopback_client_callbacks; iter;) {
+-    GstAsioObjectCallbacksPrivate *cb =
+-        (GstAsioObjectCallbacksPrivate *) iter->data;
+-    gboolean ret;
+-
+-    ret = cb->callbacks.buffer_switch (self, index, self->buffer_infos,
+-        self->num_allocated_buffers, self->input_channel_infos,
+-        self->output_channel_infos, self->sample_rate,
+-        self->selected_buffer_size, time_info, cb->callbacks.user_data);
+-    if (!ret) {
+-      GST_INFO_OBJECT (self, "Remove callback for id %" G_GUINT64_FORMAT,
+-          cb->callback_id);
+-      GList *to_remove = iter;
+-      iter = g_list_next (iter);
++  if (self->first_callback_time == 0) {
++    self->first_callback_time = g_get_monotonic_time ();
++    self->counting_prefill = TRUE;
++    g_atomic_int_set (&self->num_prefill_buffers, 1);
++  } else if (self->counting_prefill) {
++    /* Callbacks arriving well within a buffer period after the first one
++     * are pre-fill */
++    gint64 period = gst_util_uint64_scale_int (self->selected_buffer_size,
++        G_USEC_PER_SEC, (gint) self->sample_rate);
++    if (g_get_monotonic_time () - self->first_callback_time < period / 2) {
++      g_atomic_int_inc (&self->num_prefill_buffers);
++    } else {
++      self->counting_prefill = FALSE;
++      GST_DEBUG_OBJECT (self, "Driver pre-filled %d buffers",
++          g_atomic_int_get (&self->num_prefill_buffers));
++    }
++  }
+ 
+-      g_free (to_remove->data);
+-      g_list_free (to_remove);
++  g_mutex_lock (&self->api_lock);
++  if (!self->sink_client_callbacks) {
++    /* Nobody renders, fill output with silence, otherwise the driver will keep
++     * repeating the last content of the buffers. All ASIO sample types are
++     * signed integer or float, thus zero is silence */
++    for (guint i = 0; i < self->num_allocated_buffers; i++) {
++      ASIOBufferInfo *info = &self->buffer_infos[i];
++      if (info->isInput)
++        continue;
++
++      guint bps = gst_asio_object_get_sample_size (self, info->channelNum);
++      memset (info->buffers[index], 0, self->selected_buffer_size * bps);
+     }
++  }
+ 
+-    iter = g_list_next (iter);
++  if (!self->src_client_callbacks && !self->sink_client_callbacks &&
++      !self->loopback_client_callbacks) {
++    GST_LOG_OBJECT (self, "No installed client callback");
++    goto out_ready;
+   }
+ 
+-  self->asio_handle->outputReady ();
++  gst_asio_object_dispatch_callbacks (self, &self->src_client_callbacks,
++      index, time_info);
++  gst_asio_object_dispatch_callbacks (self, &self->sink_client_callbacks,
++      index, time_info);
++  gst_asio_object_dispatch_callbacks (self, &self->loopback_client_callbacks,
++      index, time_info);
+ 
+-out:
++out_ready:
++  self->asio_handle->outputReady ();
+   g_mutex_unlock (&self->api_lock);
+ 
+   return nullptr;
+@@ -1776,6 +1919,10 @@ gst_asio_object_start (GstAsioObject * obj)
+     return FALSE;
+   }
+ 
++  obj->first_callback_time = 0;
++  obj->counting_prefill = FALSE;
++  g_atomic_int_set (&obj->num_prefill_buffers, 0);
++
+   /* Then start */
+   if (!obj->device_info->sta_model) {
+     ret = obj->asio_handle->start ();
+diff --git a/sys/asio/gstasioobject.h b/sys/asio/gstasioobject.h
+index 7d80b7b..fdbc768 100644
+--- a/sys/asio/gstasioobject.h
++++ b/sys/asio/gstasioobject.h
+@@ -90,6 +90,12 @@ gboolean        gst_asio_object_get_latencies (GstAsioObject * obj,
+                                                glong * input_latency,
+                                                glong * output_latency);
+ 
++guint           gst_asio_object_get_num_prefill_buffers (GstAsioObject * obj);
++
++gboolean        gst_asio_object_get_cached_latencies (GstAsioObject * obj,
++                                                      glong * input_latency,
++                                                      glong * output_latency);
++
+ gboolean        gst_asio_object_can_sample_rate (GstAsioObject * obj,
+                                                  ASIOSampleRate sample_rate);
+ 
+diff --git a/sys/asio/gstasioringbuffer.cpp b/sys/asio/gstasioringbuffer.cpp
+index 542af43..98b0634 100644
+--- a/sys/asio/gstasioringbuffer.cpp
++++ b/sys/asio/gstasioringbuffer.cpp
+@@ -32,11 +32,16 @@
+ GST_DEBUG_CATEGORY_STATIC (gst_asio_ring_buffer_debug);
+ #define GST_CAT_DEFAULT gst_asio_ring_buffer_debug
+ 
++#define GST_ASIO_RING_BUFFER_MIN_SEGTOTAL 4
++
+ /* *INDENT-OFF* */
+ struct GstAsioRingBufferPrivate
+ {
+   std::vector<guint8> empty_buf;
+   std::atomic<bool> paused = { false };
++
++  /* Used for delay() calculation */
++  std::atomic<gint64> last_callback_time = { 0 };
+ };
+ /* *INDENT-ON* */
+ 
+@@ -188,7 +193,17 @@ gst_asio_buffer_switch_cb (GstAsioObject * obj, glong index,
+ 
+   GST_TRACE_OBJECT (self, "Buffer Switch callback, index %ld", index);
+ 
++  if (self->type == GST_ASIO_DEVICE_CLASS_RENDER)
++    priv->last_callback_time = g_get_monotonic_time ();
++
+   auto paused = priv->paused.load ();
++  if (!paused && !gst_audio_ring_buffer_prepare_read (ringbuffer,
++          &segment, &readptr, &len)) {
++    GST_WARNING_OBJECT (self, "No segment available");
++    /* Output silence instead of leaving stale data in the ASIO buffers */
++    paused = true;
++  }
++
+   if (paused) {
+     /* Source is always live, do nothing when paused */
+     if (self->type != GST_ASIO_DEVICE_CLASS_RENDER)
+@@ -196,10 +211,6 @@ gst_asio_buffer_switch_cb (GstAsioObject * obj, glong index,
+ 
+     readptr = priv->empty_buf.data ();
+     len = (gint) priv->empty_buf.size ();
+-  } else if (!gst_audio_ring_buffer_prepare_read (ringbuffer,
+-          &segment, &readptr, &len)) {
+-    GST_WARNING_OBJECT (self, "No segment available");
+-    return TRUE;
+   }
+ 
+   GST_TRACE_OBJECT (self, "segment %d, length %d", segment, len);
+@@ -354,10 +365,40 @@ gst_asio_ring_buffer_acquire (GstAudioRingBuffer * buf,
+     return FALSE;
+   }
+ 
++  /* Buffers might be re-created with different size on sample rate change */
++  if (!gst_asio_object_create_buffers (self->asio_object, self->type,
++          self->channel_indices, self->num_channels, &self->buffer_size)) {
++    GST_ERROR_OBJECT (self, "Failed to configure buffers");
++    return FALSE;
++  }
++
++  /* Query latencies now instead of on the first clock query */
++  gst_asio_object_get_cached_latencies (self->asio_object, nullptr, nullptr);
++
+   spec->segsize = self->buffer_size *
+       (GST_AUDIO_INFO_WIDTH (&spec->info) >> 3) *
+       GST_AUDIO_INFO_CHANNELS (&spec->info);
+-  spec->segtotal = 2;
++
++  /* Use buffer-time for the number of segments. Some drivers fire several
++   * buffer switch callbacks back to back on start to pre-fill their internal
++   * queue, and the ringbuffer is only filled once before start, so keep
++   * enough segments to cover that, otherwise the start of the stream
++   * would glitch */
++  {
++    guint64 seg_time = gst_util_uint64_scale_int (self->buffer_size,
++        GST_SECOND / GST_USECOND, GST_AUDIO_INFO_RATE (&spec->info));
++    guint segtotal = 0;
++
++    if (seg_time > 0)
++      segtotal = (guint) ((spec->buffer_time + seg_time - 1) / seg_time);
++
++    spec->segtotal = MAX (segtotal, GST_ASIO_RING_BUFFER_MIN_SEGTOTAL);
++    spec->latency_time = seg_time;
++    spec->buffer_time = seg_time * spec->segtotal;
++  }
++
++  GST_DEBUG_OBJECT (self, "segsize %d, segtotal %d", spec->segsize,
++      spec->segtotal);
+ 
+   buf->size = spec->segtotal * spec->segsize;
+   buf->memory = (guint8 *) g_malloc (buf->size);
+@@ -397,6 +438,7 @@ gst_asio_ring_buffer_start (GstAudioRingBuffer * buf)
+   self->is_first = TRUE;
+   self->expected_sample_position = 0;
+   priv->paused = false;
++  priv->last_callback_time = 0;
+ 
+   if (!gst_asio_object_install_callback (self->asio_object, self->type,
+           &callbacks, &self->callback_id)) {
+@@ -445,9 +487,47 @@ gst_asio_ring_buffer_stop (GstAudioRingBuffer * buf)
+ static guint
+ gst_asio_ring_buffer_delay (GstAudioRingBuffer * buf)
+ {
+-  /* FIXME: impl. */
+-
+-  return 0;
++  GstAsioRingBuffer *self = GST_ASIO_RING_BUFFER (buf);
++  glong input_latency = 0;
++  glong output_latency = 0;
++
++  if (!self->running || !self->asio_object)
++    return 0;
++
++  /* ASIO reports latencies in frames */
++  gst_asio_object_get_cached_latencies (self->asio_object, &input_latency,
++      &output_latency);
++
++  switch (self->type) {
++    case GST_ASIO_DEVICE_CLASS_RENDER:
++    {
++      auto priv = self->priv;
++      gint64 last_time = priv->last_callback_time.load ();
++      gint rate = GST_AUDIO_INFO_RATE (&buf->spec.info);
++      guint64 queued, elapsed;
++
++      if (last_time == 0 || rate <= 0)
++        return 0;
++
++      /* The ringbuffer advances once a segment is copied into the ASIO
++       * buffer, but the driver still holds that and the previously queued
++       * buffers (at least two, ASIO is double buffered). Subtract what was
++       * played since the last callback, then add the driver's output
++       * latency which doesn't include the buffers */
++      queued = (guint64) MAX (gst_asio_object_get_num_prefill_buffers
++          (self->asio_object), 2) * self->buffer_size;
++      elapsed = gst_util_uint64_scale_int (g_get_monotonic_time () -
++          last_time, rate, G_USEC_PER_SEC);
++      elapsed = MIN (elapsed, (guint64) self->buffer_size);
++
++      return (guint) (queued - elapsed + output_latency);
++    }
++    case GST_ASIO_DEVICE_CLASS_CAPTURE:
++      return (guint) input_latency;
++    default:
++      /* Loopback copies data at the time it's written to the device */
++      return 0;
++  }
+ }
+ 
+ static gboolean
