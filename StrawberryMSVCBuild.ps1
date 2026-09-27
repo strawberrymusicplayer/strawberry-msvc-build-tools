@@ -492,6 +492,7 @@ function GetPackageUrls {
     'bzip2' = "https://sourceware.org/pub/bzip2/bzip2-$bzip2_version.tar.gz"
     'xz' = "https://downloads.sourceforge.net/project/lzmautils/xz-$xz_version.tar.gz"
     'brotli' = "https://github.com/google/brotli/archive/refs/tags/v$brotli_version/brotli-$brotli_version.tar.gz"
+    'uchardet' = "https://www.freedesktop.org/software/uchardet/releases/uchardet-$uchardet_version.tar.xz"
     'icu4c' = "https://github.com/unicode-org/icu/releases/download/release-$icu4c_version/icu4c-$icu4c_version-sources.tgz"
     'pixman' = "https://www.cairographics.org/releases/pixman-$pixman_version.tar.gz"
     'expat' = "https://github.com/libexpat/libexpat/releases/download/R_$expat_version_underscore/expat-$expat_version.tar.gz"
@@ -1241,6 +1242,29 @@ function Build-Brotli {
     Push-Location "brotli-$brotli_version"
     try {
       CMakeBuild -build_path "build2" -additional_args @("-DBUILD_TESTING=OFF")
+    }
+    finally {
+      Pop-Location
+    }
+  }
+  finally {
+    Pop-Location
+  }
+}
+
+function Build-UChardet {
+  Write-Host "Building uchardet" -ForegroundColor Yellow
+  Push-Location $build_path
+  try {
+    DownloadPackage -package_name "uchardet"
+    ExtractPackage "uchardet-$uchardet_version.tar.xz"
+    Push-Location "uchardet-$uchardet_version"
+    try {
+      CMakeBuild -additional_args @(
+          "-DBUILD_STATIC=OFF",
+          "-DBUILD_BINARY=OFF",
+          "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+        )
     }
     finally {
       Pop-Location
@@ -3014,6 +3038,7 @@ try {
   if (-not (Test-Path "$prefix_path/lib/pkgconfig/bzip2.pc")) { $build_queue += "bzip2" }
   if (-not (Test-Path "$prefix_path/lib/pkgconfig/liblzma.pc")) { $build_queue += "xz" }
   if (-not (Test-Path "$prefix_path/lib/pkgconfig/libbrotlicommon.pc")) { $build_queue += "brotli" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/uchardet.pc")) { $build_queue += "uchardet" }
   if (-not (Test-Path "$prefix_path/lib/pkgconfig/icu-uc.pc")) { $build_queue += "icu4c" }
   if (-not (Test-Path "$prefix_path/lib/pkgconfig/pixman-1.pc")) { $build_queue += "pixman" }
   if (-not (Test-Path "$prefix_path/lib/pkgconfig/expat.pc")) { $build_queue += "expat" }
@@ -3106,6 +3131,7 @@ try {
       "bzip2" { Build-BZip2 }
       "xz" { Build-XZ }
       "brotli" { Build-Brotli }
+      "uchardet" { Build-UChardet }
       "icu4c" { Build-ICU4C }
       "pixman" { Build-Pixman }
       "expat" { Build-Expat }
