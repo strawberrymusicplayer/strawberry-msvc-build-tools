@@ -1,7 +1,7 @@
 From 49b4b4129e3b488f246493d3a57dc70652ec9dcf Mon Sep 17 00:00:00 2001
 From: Daeho Ro <email@daeho.ro>
 Date: Mon, 20 Jul 2026 20:50:06 +0900
-Subject: [PATCH] faac: support faac >= 2.0 (faac_* API)
+Subject: [PATCH 1/2] faac: support faac >= 2.0 (faac_* API)
 
 faac 2.0 removed the legacy faacEnc* API and bumped the library SONAME
 to 1. Detect the new API via FAAC_VERSION_MAJOR and use it when
@@ -260,6 +260,40 @@ index cd689416eb9..eaf1e431d47 100644
  if not have_faac_h and get_option('faac').enabled()
    error('faac plugin enabled: found libfaac, but not faac.h')
  endif
+-- 
+GitLab
+
+
+From 2890668a8e8aec2f41f36a62036e4e7daf93f976 Mon Sep 17 00:00:00 2001
+From: Daeho Ro <email@daeho.ro>
+Date: Tue, 29 Sep 2026 21:36:28 +0900
+Subject: [PATCH 2/2] faac: pass caller_size to faac_params_init() for faac >=
+ 2.2
+
+faac 2.2 bumped FAAC_VERSION_MAJOR and the library SONAME to 2 and
+added a caller_size argument to faac_params_init(). Pass sizeof(params)
+when FAAC_VERSION_MAJOR >= 2 and keep the one-argument call for faac
+2.0 and 2.1.
+---
+ subprojects/gst-plugins-bad/ext/faac/gstfaac.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/subprojects/gst-plugins-bad/ext/faac/gstfaac.c b/subprojects/gst-plugins-bad/ext/faac/gstfaac.c
+index 8ff8567016e..335133a2087 100644
+--- a/subprojects/gst-plugins-bad/ext/faac/gstfaac.c
++++ b/subprojects/gst-plugins-bad/ext/faac/gstfaac.c
+@@ -518,7 +518,11 @@ gst_faac_open_encoder (GstFaac * faac, GstAudioInfo * info)
+   /* clean up in case of re-configure */
+   gst_faac_close_encoder (faac);
+ 
++#if FAAC_VERSION_MAJOR >= 2
++  if (faac_params_init (&params, sizeof (params)) < 0)
++#else
+   if (faac_params_init (&params) < 0)
++#endif
+     goto setup_failed;
+ 
+   params.sample_rate = info->rate;
 -- 
 GitLab
 

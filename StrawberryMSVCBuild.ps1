@@ -125,10 +125,15 @@ else {
   exit 1
 }
 
-$boost_version_underscore = $boost_version.Replace(".", "_")
 $expat_version_underscore = $expat_version.Replace(".", "_")
 $libxml2_version_full = [version]$libxml2_version
 $libxml2_version_short = "$($libxml2_version_full.Major).$($libxml2_version_full.Minor)"
+$glib_version_full = [version]$glib_version
+$glib_version_short = "$($glib_version_full.Major).$($glib_version_full.Minor)"
+$libsoup_version_full = [version]$libsoup_version
+$libsoup_version_short = "$($libsoup_version_full.Major).$($libsoup_version_full.Minor)"
+$glib_networking_version_full = [version]$glib_networking_version
+$glib_networking_version_short = "$($glib_networking_version_full.Major).$($glib_networking_version_full.Minor)"
 $qt_version_full = [version]$qt_version
 $qt_version_short = "$($qt_version_full.Major).$($qt_version_full.Minor)"
 
@@ -169,7 +174,6 @@ if ($arch -eq "x64" -or $arch -eq "x86_64" -or $arch -eq "amd64") {
   $lib_machine="x64"
   $vs_platform="x64"
   $libjpeg_turbo_simd="ON"
-  $boost_architecture="x86"
   $lame_msvcver="X64"
 }
 elseif ($arch -eq "arm64") {
@@ -185,7 +189,6 @@ elseif ($arch -eq "arm64") {
   $lib_machine="ARM64"
   $vs_platform="ARM64"
   $libjpeg_turbo_simd="OFF"
-  $boost_architecture="arm"
   $lame_msvcver="ARM64"
 }
 else {
@@ -496,7 +499,6 @@ function GetPackageUrls {
     'icu4c' = "https://github.com/unicode-org/icu/releases/download/release-$icu4c_version/icu4c-$icu4c_version-sources.tgz"
     'pixman' = "https://www.cairographics.org/releases/pixman-$pixman_version.tar.gz"
     'expat' = "https://github.com/libexpat/libexpat/releases/download/R_$expat_version_underscore/expat-$expat_version.tar.gz"
-    'boost' = "https://archives.boost.io/release/$boost_version/source/boost_$boost_version_underscore.tar.gz"
     'libxml2' = "https://download.gnome.org/sources/libxml2/$libxml2_version_short/libxml2-$libxml2_version.tar.xz"
     'nghttp2' = "https://github.com/nghttp2/nghttp2/releases/download/v$nghttp2_version/nghttp2-$nghttp2_version.tar.gz"
     'dlfcn-win32' = "https://github.com/dlfcn-win32/dlfcn-win32/archive/refs/tags/v$dlfcn_version/dlfcn-win32-$dlfcn_version.tar.gz"
@@ -504,9 +506,9 @@ function GetPackageUrls {
     'orc' = "https://gstreamer.freedesktop.org/src/orc/orc-$orc_version.tar.xz"
     'sqlite' = "https://sqlite.org/2026/sqlite-autoconf-$sqlite_version.tar.gz"
     'libproxy' = "https://github.com/libproxy/libproxy/archive/refs/tags/$libproxy_version/libproxy-$libproxy_version.tar.gz"
-    'glib' = "https://download.gnome.org/sources/glib/2.90/glib-$glib_version.tar.xz"
-    'libsoup' = "https://download.gnome.org/sources/libsoup/3.6/libsoup-$libsoup_version.tar.xz"
-    'glib-networking' = "https://download.gnome.org/sources/glib-networking/2.80/glib-networking-$glib_networking_version.tar.xz"
+    'glib' = "https://download.gnome.org/sources/glib/$glib_version_short/glib-$glib_version.tar.xz"
+    'libsoup' = "https://download.gnome.org/sources/libsoup/$libsoup_version_short/libsoup-$libsoup_version.tar.xz"
+    'glib-networking' = "https://download.gnome.org/sources/glib-networking/$glib_networking_version_short/glib-networking-$glib_networking_version.tar.xz"
     'freetype' = "https://sourceforge.net/projects/freetype/files/freetype2/$freetype_version/freetype-$freetype_version.tar.gz"
     'cairo' = "https://cairographics.org/releases/cairo-$cairo_version.tar.xz"
     'harfbuzz' = "https://github.com/harfbuzz/harfbuzz/releases/download/$harfbuzz_version/harfbuzz-$harfbuzz_version.tar.xz"
@@ -1354,31 +1356,6 @@ function Build-Expat {
   }
 }
 
-function Build-Boost {
-  Write-Host "Building boost" -ForegroundColor Yellow
-  Push-Location $build_path
-  try {
-    DownloadPackage -package_name "boost"
-    ExtractPackage "boost_$boost_version_underscore.tar.gz"
-    Push-Location "boost_$boost_version_underscore"
-    try {
-      if (Test-Path "b2.exe") { Remove-Item "b2.exe" -Force }
-      if (Test-Path "bjam.exe") { Remove-Item "bjam.exe" -Force }
-      if (Test-Path "stage") { Remove-Item "stage" -Recurse -Force }
-      Write-Host "Running bootstrap.bat" -ForegroundColor Cyan
-      & ./bootstrap.bat msvc
-      if ($LASTEXITCODE -ne 0) { throw "Boost bootstrap failed" }
-      Write-Host "Running b2.exe" -ForegroundColor Cyan
-      & ./b2.exe -a -q -j 4 -d1 --ignore-site-config --stagedir="stage" --layout="tagged" --prefix="$prefix_path" --exec-prefix="$prefix_path/bin" --libdir="$prefix_path/lib" --includedir="$prefix_path/include" --with-headers toolset=msvc architecture=$boost_architecture address-model=$arch_bits link=shared runtime-link=shared threadapi=win32 threading=multi variant=$build_type install
-    }
-    finally {
-      Pop-Location
-    }
-  }
-  finally {
-    Pop-Location
-  }
-}
 
 function Build-LibXML2 {
   Write-Host "Building libxml2" -ForegroundColor Yellow
@@ -3043,7 +3020,6 @@ try {
   if (-not (Test-Path "$prefix_path/lib/pkgconfig/icu-uc.pc")) { $build_queue += "icu4c" }
   if (-not (Test-Path "$prefix_path/lib/pkgconfig/pixman-1.pc")) { $build_queue += "pixman" }
   if (-not (Test-Path "$prefix_path/lib/pkgconfig/expat.pc")) { $build_queue += "expat" }
-  if (-not (Test-Path "$prefix_path/include/boost/config.hpp")) { $build_queue += "boost" }
   if (-not (Test-Path "$prefix_path/lib/pkgconfig/libxml-2.0.pc")) { $build_queue += "libxml2" }
   if (-not (Test-Path "$prefix_path/lib/pkgconfig/libnghttp2.pc")) { $build_queue += "nghttp2" }
   if (-not (Test-Path "$prefix_path/lib/pkgconfig/libffi.pc")) { $build_queue += "libffi" }
@@ -3136,7 +3112,6 @@ try {
       "icu4c" { Build-ICU4C }
       "pixman" { Build-Pixman }
       "expat" { Build-Expat }
-      "boost" { Build-Boost }
       "libxml2" { Build-LibXML2 }
       "nghttp2" { Build-NgHttp2 }
       "libffi" { Build-LibFFI }
