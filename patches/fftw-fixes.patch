@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index b6e4666..6b2a557 100644
+index 4d0496b..cfc3d68 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -66,6 +66,7 @@ check_prototype_definition (cosl "long double cosl( long double arg )" "0" math.
@@ -37,7 +37,7 @@ index b6e4666..6b2a557 100644
      unset (HAVE_FMA CACHE)
      unset (HAVE_FMA)
      check_c_compiler_flag (${FLAG} HAVE_FMA)
-@@ -363,7 +367,7 @@ foreach(subtarget ${subtargets})
+@@ -377,7 +381,7 @@ foreach(subtarget ${subtargets})
            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
  endforeach ()
  install(TARGETS ${fftw3_lib}
@@ -46,7 +46,7 @@ index b6e4666..6b2a557 100644
            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
-@@ -424,11 +428,11 @@ configure_file (FFTW3ConfigVersion.cmake.in FFTW3${PREC_SUFFIX}ConfigVersion.cma
+@@ -438,11 +442,11 @@ configure_file (FFTW3ConfigVersion.cmake.in FFTW3${PREC_SUFFIX}ConfigVersion.cma
  install (FILES
            ${CMAKE_CURRENT_BINARY_DIR}/FFTW3${PREC_SUFFIX}Config.cmake
            ${CMAKE_CURRENT_BINARY_DIR}/FFTW3${PREC_SUFFIX}ConfigVersion.cmake
@@ -63,15 +63,15 @@ index b6e4666..6b2a557 100644
 +        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake
          COMPONENT Development)
 diff --git a/FFTW3Config.cmake.in b/FFTW3Config.cmake.in
-index 6b1fbc2..ccd8efe 100644
+index 6e073f5..a9bed4e 100644
 --- a/FFTW3Config.cmake.in
 +++ b/FFTW3Config.cmake.in
 @@ -10,7 +10,7 @@ set (FFTW3@PREC_SUFFIX@_LIBRARIES fftw3@PREC_SUFFIX@)
  set (FFTW3@PREC_SUFFIX@_LIBRARY_DIRS @CMAKE_INSTALL_FULL_LIBDIR@)
  set (FFTW3@PREC_SUFFIX@_INCLUDE_DIRS @CMAKE_INSTALL_FULL_INCLUDEDIR@)
  
--include ("${CMAKE_CURRENT_LIST_DIR}/FFTW3LibraryDepends.cmake")
-+include ("${CMAKE_CURRENT_LIST_DIR}/FFTW3@PREC_SUFFIX@LibraryDepends.cmake")
+-include ("${CMAKE_CURRENT_LIST_DIR}/FFTW3LibraryDepends.cmake" OPTIONAL)
++include ("${CMAKE_CURRENT_LIST_DIR}/FFTW3@PREC_SUFFIX@LibraryDepends.cmake" OPTIONAL)
  
  if (CMAKE_VERSION VERSION_LESS 2.8.3)
    set (CMAKE_CURRENT_LIST_DIR)

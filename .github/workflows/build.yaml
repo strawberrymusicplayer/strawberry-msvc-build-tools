@@ -1,0 +1,204 @@
+name: Build
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+env:
+  nasm_version: '3.02'
+
+  win_flex_bison_version: '2.5.25'
+
+  curl_options: '-f -O -L --connect-timeout 60 -m 900 --retry 15 --retry-delay 10 --retry-max-time 300 --retry-all-errors'
+
+  PKG_CONFIG_ALLOW_SYSTEM_CFLAGS: '1'
+
+  PKG_CONFIG_ALLOW_SYSTEM_LIBS: '1'
+
+
+jobs:
+
+  build:
+    name: Build Windows MSVC
+
+    timeout-minutes: 360
+
+    strategy:
+      fail-fast: false
+
+      matrix:
+       include:
+         - name: "Windows x86_64 debug"
+           runner: windows-2022
+           arch: x86_64
+           buildtype: debug
+
+         - name: "Windows x86_64 release"
+           runner: windows-2022
+           arch: x86_64
+           buildtype: release
+
+         - name: "Windows arm64 debug"
+           runner: windows-11-arm
+           arch: arm64
+           buildtype: debug
+
+         - name: "Windows arm64 release"
+           runner: windows-11-arm
+           arch: arm64
+           buildtype: release
+
+    runs-on: ${{matrix.runner}}
+
+    steps:
+
+      - name: Set prefix path
+        shell: bash
+        run: |
+          echo "prefix_path_backslash=c:\strawberry_msvc_${{matrix.arch}}_${{matrix.buildtype}}" >> $GITHUB_ENV
+          echo "prefix_path_unix=/c/strawberry_msvc_${{matrix.arch}}_${{matrix.buildtype}}" >> $GITHUB_ENV
+
+      - name: Set downloads and build path
+        shell: bash
+        run: |
+          drive=$(test -d /d && echo "d" || echo "c")
+          echo "downloads_path=${drive}:/downloads" >> $GITHUB_ENV
+          echo "build_path=${drive}:/build" >> $GITHUB_ENV
+
+      - name: Set arch variables (x86_64)
+        if: matrix.arch == 'x86_64'
+        shell: bash
+        run: |
+          echo "arch_short=x64" >> $GITHUB_ENV
+          echo "arch_win=win64" >> $GITHUB_ENV
+
+      - name: Set arch variables (arm64)
+        if: matrix.arch == 'arm64'
+        shell: bash
+        run: |
+          echo "arch_short=arm64" >> $GITHUB_ENV
+          echo "arch_win=win64" >> $GITHUB_ENV
+
+      - name: Enable git long paths
+        shell: bash
+        run: git config --system core.longpaths true
+
+      - name: Create directories
+        shell: bash
+        run: mkdir -p ${{env.prefix_path_unix}}/{bin,lib,include} "${{env.downloads_path}}" "${{env.build_path}}"
+
+      # Don't copy patch.exe, Strawberry Perl's GNU patch 2.5.9 crashes on patches creating new files, Git's patch is used instead.
+      - name: Copy bin files
+        shell: bash
+        run: cp /c/strawberry/c/bin/{strip.exe,strings.exe,objdump.exe} ${{env.prefix_path_unix}}/bin
+
+      - name: Delete conflicting libraries
+        shell: bash
+        run: rm -rf /c/{msys64,mingw32,mingw64,clangarm64} /c/strawberry/c "/c/program files/OpenSSL"
+
+      - name: Delete conflicting icu
+        shell: bash
+        run: find "/c/program files (x86)/windows kits/" -type f \( -iname 'icu*.lib' -o -iname 'icu*.h' \) -print -delete
+
+
+      - name: Set python version
+        shell: bash
+        run: echo "python_version="$(which python | cut -d '/' -f 6)"" >> $GITHUB_ENV
+
+
+      - name: Cleanup PATH
+        shell: pwsh
+        run: |
+          $paths = @(
+            "${{env.prefix_path_backslash}}\bin",
+            "C:\Windows\system32",
+            "C:\Windows",
+            "C:\Windows\System32\Wbem",
+            "C:\Windows\System32\WindowsPowerShell\v1.0",
+            "C:\Program Files\PowerShell\7",
+            "C:\Program Files\Git\bin",
+            "C:\Program Files\CMake\bin",
+            "C:\Program Files\GitHub CLI",
+            "C:\ProgramData\Chocolatey\bin",
+            "C:\Program Files\7-Zip",
+            "C:\Strawberry\perl\bin",
+            "C:\hostedtoolcache\windows\Python\${{env.python_version}}\${{env.arch_short}}",
+            "C:\hostedtoolcache\windows\Python\${{env.python_version}}\${{env.arch_short}}\Scripts",
+            "C:\Users\runneradmin\.cargo\bin"
+          )
+          "PATH=$($paths -join ';')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-c
+        shell: cmd
+        run: cargo install --locked cargo-c
+
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+
+      - name: Install python dependencies
+        shell: cmd
+        run: pip install meson ninja
+
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+
+      - id: set-nasm-filename
+        name: Set nasm filename
+        shell: bash
+        run: echo "nasm-filename=nasm-${{env.nasm_version}}-installer-$(test "${{matrix.arch}}" = "arm64" && echo "x64" || echo "${{env.arch_short}}").exe" >> $GITHUB_OUTPUT
+
+      - name: Download nasm
+        shell: bash
+        working-directory: ${{env.downloads_path}}
+        run: curl ${{env.curl_options}} https://www.nasm.us/pub/nasm/releasebuilds/${{env.nasm_version}}/${{env.arch_win}}/${{steps.set-nasm-filename.outputs.nasm-filename}} || curl ${{env.curl_options}} https://github.com/netwide-assembler/nasm/releases/download/nasm-${{env.nasm_version}}/${{steps.set-nasm-filename.outputs.nasm-filename}}
+
+      - name: Create nasm directory
+        shell: cmd
+        run: mkdir c:\nasm
+
+      - name: Extract nasm
+        shell: cmd
+        working-directory: c:/nasm
+        run: 7z x "${{env.downloads_path}}\${{steps.set-nasm-filename.outputs.nasm-filename}}"
+
+      - name: Copy nasm
+        shell: bash
+        run: cp /c/nasm/nasm.exe /c/nasm/nasmw.exe
+
+      - name: Add nasm to PATH
+        shell: pwsh
+        run: echo "c:\nasm" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+
+      - name: Download win_flex_bison
+        shell: bash
+        working-directory: ${{env.downloads_path}}
+        run: curl ${{env.curl_options}} https://github.com/lexxmark/winflexbison/releases/download/v${{env.win_flex_bison_version}}/win_flex_bison-${{env.win_flex_bison_version}}.zip || curl ${{env.curl_options}} https://packages.strawberrymusicplayer.org/win_flex_bison-${{env.win_flex_bison_version}}.zip
+
+      - name: Create win_flex_bison directory
+        shell: cmd
+        run: mkdir c:\win_flex_bison
+
+      - name: Extract win_flex_bison
+        shell: cmd
+        working-directory: c:/win_flex_bison
+        run: 7z x "${{env.downloads_path}}\win_flex_bison-${{env.win_flex_bison_version}}.zip"
+
+      - name: Add win_flex_bison to PATH
+        shell: pwsh
+        run: echo "c:\win_flex_bison" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+
+      - name: Build
+        shell: pwsh
+        run: ./StrawberryMSVCBuild.ps1 -build_type ${{matrix.buildtype}} -arch ${{matrix.arch}} -downloads_path "${{env.downloads_path}}" -build_path "${{env.build_path}}"
+
