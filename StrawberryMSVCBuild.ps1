@@ -347,7 +347,7 @@ foreach ($cmd_check in $cmd_checks) {
   if (-not (Test-Command $cmd_check.Command)) {
     foreach ($path in $cmd_check.Paths) {
       if (Test-Path $path) {
-        $cmd_path = "$path/${cmd_check.Command}"
+        $cmd_path = "$path/$($cmd_check.Command).exe"
         if (Test-Path $cmd_path) {
           $env:PATH = "$env:PATH;$path"
           break
