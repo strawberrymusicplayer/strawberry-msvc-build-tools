@@ -2209,6 +2209,10 @@ function Build-LibEBUR128 {
     ExtractPackage "libebur128-$libebur128_version.tar.gz"
     Push-Location "libebur128-$libebur128_version"
     try {
+      # On arm64 the SSE2 check falls through to a #warning, which MSVC only supports with /std:clatest.
+      if ($arch -eq "arm64") {
+        & sed -i "s/^#warning .*//g" ebur128/ebur128.c
+      }
       CMakeBuild -additional_args @(
           "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
         )
