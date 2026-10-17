@@ -388,12 +388,6 @@ function update_package() {
       package_version_latest=$(latest_git_commit "https://github.com/jonaski/qtsparkle.git")
       package_git=1
       ;;
-    "abseil")
-      package_version_latest=$(latest_github_release "abseil" "abseil-cpp")
-      ;;
-    "protobuf")
-      package_version_latest=$(latest_github_release "protocolbuffers" "protobuf")
-      ;;
     "sparsehash")
       package_version_latest=$(latest_github_release "sparsehash" "sparsehash")
       ;;
@@ -414,12 +408,6 @@ function update_package() {
       ;;
     "peparse")
       package_version_latest=$(latest_github_release "trailofbits" "pe-parse")
-      ;;
-    "glew")
-      package_version_latest=$(latest_github_release "nigels-com" "glew" | sed 's/^glew\-//g')
-      ;;
-    "libprojectm")
-      package_version_latest=$(latest_github_release "projectM-visualizer" "projectm")
       ;;
     "pe_util")
       package_version_latest=$(latest_git_commit "https://github.com/gsauthof/pe-util.git")
