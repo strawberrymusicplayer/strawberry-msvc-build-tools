@@ -1,0 +1,45 @@
+name: Update
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'
+
+permissions: {}
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+
+  update:
+    name: Check for new versions
+    if: github.repository == 'strawberrymusicplayer/strawberry-msvc-build-tools'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      GH_TOKEN: ${{secrets.UPDATE_TOKEN}}
+
+    steps:
+
+      - name: Check token
+        if: env.GH_TOKEN == ''
+        run: |
+          echo "::error::Missing UPDATE_TOKEN secret."
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: master
+          fetch-depth: 0
+          token: ${{secrets.UPDATE_TOKEN}}
+
+      - name: Configure git
+        run: |
+          git config user.name "$(gh api user --jq '.login')"
+          git config user.email "$(gh api user --jq '.id')+$(gh api user --jq '.login')@users.noreply.github.com"
+
+      - name: Update
+        run: ./.github/scripts/update.sh
