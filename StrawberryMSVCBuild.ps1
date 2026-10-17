@@ -28,10 +28,14 @@
   Path to downloads directory (default: c:/data/projects/strawberry/msvc_/downloads)
 .PARAMETER build_path
   Path to build directory (default: c:/data/projects/strawberry/msvc_/build_<arch>_<build_type>, where <arch> and <build_type> are substituted with the actual parameter values)
+.PARAMETER build_strawberry
+  Build Strawberry and the StrawberrySetup installer after the dependencies: $true or $false (default: $false)
 .EXAMPLE
   ./StrawberryMSVCBuild.ps1 -build_type release -arch x86_64
 .EXAMPLE
   ./StrawberryMSVCBuild.ps1 -build_type debug -arch x86_64 -downloads_path "D:/strawberry/downloads" -build_path "D:/strawberry/build"
+.EXAMPLE
+  ./StrawberryMSVCBuild.ps1 -build_type release -arch x86_64 -build_strawberry $true
 #>
 
 [CmdletBinding()]
@@ -48,7 +52,10 @@ param(
   [string]$downloads_path = "c:/data/projects/strawberry/msvc_/downloads",
 
   [Parameter(Mandatory=$false)]
-  [string]$build_path = ""
+  [string]$build_path = "",
+
+  [Parameter(Mandatory=$false)]
+  [bool]$build_strawberry = $false
 )
 
 function AppendPathToEnvPath() {
@@ -152,6 +159,7 @@ switch ($arch_numeric_id) {
   0 { $vs_host_arch = "x86" }
   5 { $vs_host_arch = "arm64" }
   9 { $vs_host_arch = "amd64" }
+  12 { $vs_host_arch = "arm64" }
   default {
     Write-Error "Unsupported host architecture: $arch_numeric_id"
     exit 1
@@ -218,6 +226,7 @@ Write-Host "  Build Architecture:  $arch"
 Write-Host "  CMake build type:    $cmake_build_type"
 Write-Host "  Meson build type:    $meson_build_type"
 Write-Host "  Prefix path:         $prefix_path"
+Write-Host "  Build Strawberry:    $build_strawberry"
 Write-Host ""
 
 # Create directories
@@ -524,7 +533,8 @@ function GetPackageUrls {
     'speex' = "https://gitlab.xiph.org/xiph/speex/-/archive/Speex-$speex_version/speex-Speex-$speex_version.tar.gz"
     'mpg123' = "https://downloads.sourceforge.net/project/mpg123/mpg123/$mpg123_version/mpg123-$mpg123_version.tar.bz2"
     'lame' = "https://downloads.sourceforge.net/project/lame/lame/$lame_version/lame-$lame_version.tar.gz"
-    'fftw' = "https://github.com/strawberrymusicplayer/fftw3-mingw-cross/releases/download/${fftw_version}/fftw-${arch}-w64-mingw32-${build_type}-${fftw_version}.tar.xz"
+    'fftw-mingw' = "https://github.com/strawberrymusicplayer/fftw3-mingw-cross/releases/download/${fftw_mingw_version}/fftw-${arch}-w64-mingw32-${build_type}-${fftw_mingw_version}.tar.xz"
+    'fftw-source' = "https://www.fftw.org/fftw-$fftw_source_version.tar.gz"
     'musepack' = "https://files.musepack.net/source/musepack_src_r$musepack_version.tar.gz"
     'libopenmpt' = "https://lib.openmpt.org/files/libopenmpt/src/libopenmpt-$libopenmpt_version+release.msvc.zip"
     'libgme' = "https://github.com/libgme/game-music-emu/releases/download/$libgme_version/libgme-$libgme_version-src.tar.gz"
@@ -1100,7 +1110,10 @@ function Build-OpenSSL {
     try {
       $is_debug = $build_type -eq "debug"
       $build_flag = if ($is_debug) { "--debug" } else { "--release" }
-      & perl Configure $openssl_platform shared zlib no-capieng no-tests --prefix="$prefix_path" --libdir=lib --openssldir="$prefix_path/ssl" $build_flag --with-zlib-include="$prefix_path/include" --with-zlib-lib="$prefix_path/lib/z${lib_postfix}.lib"
+      # VC-WIN64-ARM replaces the inherited ex_libs with onecore.lib, dropping the zlib library, so add it back with LDLIBS.
+      $ldlibs_args = @()
+      if ($arch -eq "arm64") { $ldlibs_args += "LDLIBS=onecore.lib $prefix_path/lib/z${lib_postfix}.lib" }
+      & perl Configure $openssl_platform shared zlib no-capieng no-tests --prefix="$prefix_path" --libdir=lib --openssldir="$prefix_path/ssl" $build_flag --with-zlib-include="$prefix_path/include" --with-zlib-lib="$prefix_path/lib/z${lib_postfix}.lib" @ldlibs_args
       if ($LASTEXITCODE -ne 0) { throw "OpenSSL configure failed" }
       & nmake
       if ($LASTEXITCODE -ne 0) { throw "OpenSSL build failed" }
@@ -1319,7 +1332,10 @@ function Build-Pixman {
     ExtractPackage "pixman-$pixman_version.tar.gz" -ignore_errors $true
     Push-Location "pixman-$pixman_version"
     try {
-      MesonBuild -additional_args @("-Dgtk=disabled", "-Dlibpng=enabled")
+      $pixman_args = @("-Dgtk=disabled", "-Dlibpng=enabled")
+      # pixman enables MMX for any MSVC build, but the MMX intrinsics are x86 only.
+      if ($arch -eq "arm64") { $pixman_args += "-Dmmx=disabled" }
+      MesonBuild -additional_args $pixman_args
     }
     finally {
       Pop-Location
@@ -1834,6 +1850,7 @@ function Build-Opus {
     try {
       # Remove problematic line from CMakeLists.txt
       & sed -i '/include(opus_buildtype.cmake)/d' CMakeLists.txt
+      & patch -p1 -N -i "$patch_path/opus-cmake.patch"
       CMakeBuild
       Write-Host "opus built successfully!" -ForegroundColor Green
     }
@@ -1950,13 +1967,32 @@ function Build-FFTW3 {
   Write-Host "Building fftw3" -ForegroundColor Yellow
   Push-Location $build_path
   try {
+    # There is no MinGW-W64 binary package for arm64, so build it from source with CMake
+    if ($arch -eq "arm64") {
+      DownloadPackage -package_name "fftw-source"
+      ExtractPackage "fftw-$fftw_source_version.tar.gz"
+      Push-Location "fftw-$fftw_source_version"
+      try {
+        & patch -p1 -N -i "$patch_path/fftw-fixes.patch"
+        CMakeBuild -additional_args @(
+          "-DBUILD_TESTS=OFF",
+          "-DENABLE_THREADS=ON",
+          "-DWITH_COMBINED_THREADS=ON",
+          "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+        )
+      }
+      finally {
+        Pop-Location
+      }
+      return
+    }
     # It's recommended to build FFTW3 with MinGW-W64 so we use a binary package built on GitHub
-    DownloadPackage -package_name "fftw"
-    ExtractPackage "fftw-${arch}-w64-mingw32-${build_type}-${fftw_version}.tar.xz"
-    Push-Location "fftw-${arch}-w64-mingw32-${build_type}-${fftw_version}/lib"
+    DownloadPackage -package_name "fftw-mingw"
+    ExtractPackage "fftw-${arch}-w64-mingw32-${build_type}-${fftw_mingw_version}.tar.xz"
+    Push-Location "fftw-${arch}-w64-mingw32-${build_type}-${fftw_mingw_version}/lib"
     try {
       # Generate .lib file from .def
-      if ((-not (Test-Path "fftw3.def")) && Test-Path "libfftw3-3.def") {
+      if ((-not (Test-Path "fftw3.def")) -and (Test-Path "libfftw3-3.def")) {
         Copy-Item "libfftw3-3.def" "fftw3.def" -Force
       }
       & lib /machine:$lib_machine /def:fftw3.def
@@ -1965,7 +2001,7 @@ function Build-FFTW3 {
     finally {
       Pop-Location
     }
-    RecursiveCopy "fftw-${arch}-w64-mingw32-${build_type}-${fftw_version}" "$prefix_path"
+    RecursiveCopy "fftw-${arch}-w64-mingw32-${build_type}-${fftw_mingw_version}" "$prefix_path"
     & sed -i "s,^prefix=.*,prefix=${prefix_path},g" "$prefix_path/lib/pkgconfig/fftw3.pc"
     & sed -i "s,^exec_prefix=.*,exec_prefix=${prefix_path},g" "$prefix_path/lib/pkgconfig/fftw3.pc"
     & sed -i "s,^libdir=.*,libdir=${prefix_path}/lib,g" "$prefix_path/lib/pkgconfig/fftw3.pc"
@@ -3078,8 +3114,10 @@ try {
   if (-not (Test-Path "$prefix_path/lib/pkgconfig/tinysvcmdns.pc")) { $build_queue += "tinysvcmdns" }
   if (-not (Test-Path "$prefix_path/lib/cmake/pe-parse/pe-parse-config.cmake")) { $build_queue += "pe-parse" }
   if (-not (Test-Path "$prefix_path/bin/peldd.exe")) { $build_queue += "pe-util" }
-  if (-not (Test-Path "$build_path/strawberry/build/strawberry.exe")) { $build_queue += "strawberry" }
-  if (-not (Test-Path "$build_path/StrawberrySetup/StrawberrySetup*.exe")) { $build_queue += "strawberry-setup" }
+  if ($build_strawberry) {
+    if (-not (Test-Path "$build_path/strawberry/build/strawberry.exe")) { $build_queue += "strawberry" }
+    if (-not (Test-Path "$build_path/StrawberrySetup/StrawberrySetup*.exe")) { $build_queue += "strawberry-setup" }
+  }
 
   if ($build_queue.Count -eq 0) {
     Write-Host "All dependencies already built!" -ForegroundColor Green

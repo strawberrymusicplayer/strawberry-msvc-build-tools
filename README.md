@@ -110,10 +110,10 @@ To use prebuilds, download the following `tar.xz` files from Github [strawberry-
 cd C:\data\projects\strawberry\strawberry-msvc
 
 rem For debug build:
-.\StrawberryMSVCBuild.ps1 -build_type debug -arch x86_64
+.\StrawberryMSVCBuild.ps1 -build_type debug -arch x86_64 -build_strawberry $true
 
 rem For release build:
-.\StrawberryMSVCBuild.ps1 -build_type release -arch x86_64
+.\StrawberryMSVCBuild.ps1 -build_type release -arch x86_64 -build_strawberry $true
 ```
 
 Strawberry and Windows installer executables are generated in:
