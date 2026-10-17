@@ -139,8 +139,6 @@ $glib_version_full = [version]$glib_version
 $glib_version_short = "$($glib_version_full.Major).$($glib_version_full.Minor)"
 $libsoup_version_full = [version]$libsoup_version
 $libsoup_version_short = "$($libsoup_version_full.Major).$($libsoup_version_full.Minor)"
-$glib_networking_version_full = [version]$glib_networking_version
-$glib_networking_version_short = "$($glib_networking_version_full.Major).$($glib_networking_version_full.Minor)"
 $qt_version_full = [version]$qt_version
 $qt_version_short = "$($qt_version_full.Major).$($qt_version_full.Minor)"
 
@@ -513,11 +511,10 @@ function GetPackageUrls {
     'dlfcn-win32' = "https://github.com/dlfcn-win32/dlfcn-win32/archive/refs/tags/v$dlfcn_version/dlfcn-win32-$dlfcn_version.tar.gz"
     'libpsl' = "https://github.com/rockdaboot/libpsl/releases/download/$libpsl_version/libpsl-$libpsl_version.tar.gz"
     'orc' = "https://gstreamer.freedesktop.org/src/orc/orc-$orc_version.tar.xz"
-    'sqlite' = "https://sqlite.org/2026/sqlite-autoconf-$sqlite_version.tar.gz"
+    'sqlite' = "https://sqlite.org/$sqlite_year/sqlite-autoconf-$sqlite_version.tar.gz"
     'libproxy' = "https://github.com/libproxy/libproxy/archive/refs/tags/$libproxy_version/libproxy-$libproxy_version.tar.gz"
     'glib' = "https://download.gnome.org/sources/glib/$glib_version_short/glib-$glib_version.tar.xz"
     'libsoup' = "https://download.gnome.org/sources/libsoup/$libsoup_version_short/libsoup-$libsoup_version.tar.xz"
-    'glib-networking' = "https://download.gnome.org/sources/glib-networking/$glib_networking_version_short/glib-networking-$glib_networking_version.tar.xz"
     'freetype' = "https://sourceforge.net/projects/freetype/files/freetype2/$freetype_version/freetype-$freetype_version.tar.gz"
     'cairo' = "https://cairographics.org/releases/cairo-$cairo_version.tar.xz"
     'harfbuzz' = "https://github.com/harfbuzz/harfbuzz/releases/download/$harfbuzz_version/harfbuzz-$harfbuzz_version.tar.xz"
@@ -1584,13 +1581,14 @@ function Build-GlibNetworking {
   Write-Host "Building glib-networking" -ForegroundColor Yellow
   Push-Location $build_path
   try {
-    #DownloadPackage -package_name "glib-networking"
-    #ExtractPackage "glib-networking-$glib_networking_version.tar.xz"
-    #Set-Location "glib-networking-$glib_networking_version"
     CloneGitRepo -git_repo_name "glib-networking"
     RecursiveCopy "$downloads_path/glib-networking" "glib-networking"
     Push-Location "glib-networking"
     try {
+      & git checkout $glib_networking_version
+      if ($LASTEXITCODE -ne 0) {
+        throw "Failed to checkout glib-networking $glib_networking_version"
+      }
       & patch -p1 -N -i $patch_path/glib-networking.patch
       MesonBuild `
         -additional_args @(
