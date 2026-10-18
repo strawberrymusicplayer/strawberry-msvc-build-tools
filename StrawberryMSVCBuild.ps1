@@ -29,7 +29,7 @@
 .PARAMETER build_path
   Path to build directory (default: c:/data/projects/strawberry/msvc_/build_<arch>_<build_type>, where <arch> and <build_type> are substituted with the actual parameter values)
 .PARAMETER build_strawberry
-  Build Strawberry and the StrawberrySetup installer after the dependencies: $true or $false (default: $false)
+  Build Strawberry and the StrawberrySetup NSIS and Qt Installer Framework installers after the dependencies: $true or $false (default: $false)
 .EXAMPLE
   ./StrawberryMSVCBuild.ps1 -build_type release -arch x86_64
 .EXAMPLE
@@ -209,6 +209,7 @@ if ([string]::IsNullOrEmpty($build_path)) {
 }
 
 $prefix_path = "c:/strawberry_msvc_${arch}_${build_type}"
+$qtifw_path = "c:/strawberry_qtifw_${arch}"
 $qt_dev = "OFF"
 $gst_dev = "OFF"
 
@@ -224,6 +225,7 @@ Write-Host "  Build Architecture:  $arch"
 Write-Host "  CMake build type:    $cmake_build_type"
 Write-Host "  Meson build type:    $meson_build_type"
 Write-Host "  Prefix path:         $prefix_path"
+Write-Host "  Qt IFW path:         $qtifw_path"
 Write-Host "  Build Strawberry:    $build_strawberry"
 Write-Host ""
 
@@ -2847,6 +2849,15 @@ function Build-Strawberry {
   }
 }
 
+function Build-QtIFW {
+  Write-Host "Building Qt Installer Framework" -ForegroundColor Yellow
+  # Run in a separate process, the script changes PATH to build a static Qt without the shared dependencies.
+  & pwsh -NoProfile -File "$PSScriptRoot/StrawberryQtIFWBuild.ps1" -arch $arch -downloads_path $downloads_path -install_path $qtifw_path
+  if ($LASTEXITCODE -ne 0) {
+    throw "Qt Installer Framework build failed"
+  }
+}
+
 function Build-StrawberrySetup {
   Write-Host "Creating StrawberrySetup" -ForegroundColor Yellow
   Push-Location $build_path
@@ -2873,6 +2884,12 @@ function Build-StrawberrySetup {
       DownloadPackage -package_name "vc-redist-${arch_short}"
       Copy-Item "$downloads_path/vc_redist.${arch_short}.exe" "." -Force
       & makensis strawberry.nsi
+      if (Test-Path "qtifw") {
+        Remove-Item "qtifw" -Recurse -Force
+      }
+      Copy-Item "$build_path/strawberry/build/qtifw" "." -Recurse -Force
+      Copy-Item "$build_path/strawberry/build/strawberry-qtifw.ps1" "." -Force
+      & ./strawberry-qtifw.ps1 -binarycreator "$qtifw_path/bin/binarycreator.exe"
       Write-Host "Strawberry setup built successfully!" -ForegroundColor Green
     }
     finally {
@@ -2964,6 +2981,7 @@ try {
   if (-not (Test-Path "$prefix_path/bin/peldd.exe")) { $build_queue += "pe-util" }
   if ($build_strawberry) {
     if (-not (Test-Path "$build_path/strawberry/build/strawberry.exe")) { $build_queue += "strawberry" }
+    if (-not (Test-Path "$qtifw_path/bin/binarycreator.exe")) { $build_queue += "qtifw" }
     if (-not (Test-Path "$build_path/StrawberrySetup/StrawberrySetup*.exe")) { $build_queue += "strawberry-setup" }
   }
 
@@ -3051,6 +3069,7 @@ try {
       "pe-parse" { Build-PeParse }
       "pe-util" { Build-PeUtil }
       "strawberry" { Build-Strawberry }
+      "qtifw" { Build-QtIFW }
       "strawberry-setup" { Build-StrawberrySetup }
       default {
         Write-Warning "Unknown component: $component (skipping)"

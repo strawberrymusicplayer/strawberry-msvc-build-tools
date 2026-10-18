@@ -120,6 +120,21 @@ Strawberry and Windows installer executables are generated in:
 - For debug: `C:\data\projects\strawberry\msvc_\build_debug\strawberry\build\`
 - For release: `C:\data\projects\strawberry\msvc_\build_release\strawberry\build\`
 
+Two Windows installers are created in the `StrawberrySetup` directory of the build path, one with NSIS and one with the [Qt Installer Framework](https://doc.qt.io/qtinstallerframework/) (`StrawberrySetup-*-qtifw.exe`).
+
+## Build the Qt Installer Framework
+
+The Qt Installer Framework is built automatically by `StrawberryMSVCBuild.ps1` when building Strawberry. It can also be built separately:
+
+```powershell
+cd C:\data\projects\strawberry\strawberry-msvc-build-tools
+.\StrawberryQtIFWBuild.ps1 -arch x86_64
+```
+
+This builds a static Qt (qtbase, qtdeclarative, qttools and qt5compat) with the static MSVC runtime, and the Qt Installer Framework with it, independent of the debug or release build type.
+The tools (`binarycreator.exe`, `installerbase.exe`, `repogen.exe`, `archivegen.exe` and `devtool.exe`) are installed to `C:\strawberry_qtifw_x86_64\bin`.
+The versions are set with `QT_VERSION` and `QT_IFW_VERSION` in `StrawberryPackageVersions.txt`.
+
 ## Setting up Strawberry for development in Visual Studio 2022 or 2026
 
 Optional `Qt Visual Studio Tools` can be installed via the toolbar `Extensions | Manage Extensions` and search for `Qt Visual Studio Tools`. Then click `Install`.
