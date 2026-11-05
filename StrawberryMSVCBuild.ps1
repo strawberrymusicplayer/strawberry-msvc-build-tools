@@ -1077,7 +1077,6 @@ function Build-ZLib {
       CMakeBuild
       if ($build_type -eq "debug") {
         & sed -i 's/-lz$/-lzd/g' "$prefix_path/lib/pkgconfig/zlib.pc"
-        Copy-Item "$prefix_path/lib/zd.lib" "$prefix_path/lib/z.lib" -Force
       }
     }
     finally {
@@ -1103,8 +1102,8 @@ function Build-OpenSSL {
       $build_flag = if ($is_debug) { "--debug" } else { "--release" }
       # VC-WIN64-ARM replaces the inherited ex_libs with onecore.lib, dropping the zlib library, so add it back with LDLIBS.
       $ldlibs_args = @()
-      if ($arch -eq "arm64") { $ldlibs_args += "LDLIBS=onecore.lib $prefix_path/lib/z${lib_postfix}.lib" }
-      & perl Configure $openssl_platform shared zlib no-capieng no-tests --prefix="$prefix_path" --libdir=lib --openssldir="$prefix_path/ssl" $build_flag --with-zlib-include="$prefix_path/include" --with-zlib-lib="$prefix_path/lib/z${lib_postfix}.lib" @ldlibs_args
+      if ($arch -eq "arm64") { $ldlibs_args += "LDLIBS=onecore.lib $prefix_path/lib/libz${lib_postfix}.lib" }
+      & perl Configure $openssl_platform shared zlib no-tests --prefix="$prefix_path" --libdir=lib --openssldir="$prefix_path/ssl" $build_flag --with-zlib-include="$prefix_path/include" --with-zlib-lib="$prefix_path/lib/libz${lib_postfix}.lib" @ldlibs_args
       if ($LASTEXITCODE -ne 0) { throw "OpenSSL configure failed" }
       & nmake
       if ($LASTEXITCODE -ne 0) { throw "OpenSSL build failed" }
