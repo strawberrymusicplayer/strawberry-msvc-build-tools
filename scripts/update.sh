@@ -535,78 +535,78 @@ function package_downloads() {
   local v_short="${v%.*}"
 
   case ${package_name} in
-    "pkgconf") echo "PKGCONF_SHA256 https://github.com/pkgconf/pkgconf/archive/refs/tags/pkgconf-${v}.tar.gz" ;;
-    "proxy_libintl") echo "PROXY_LIBINTL_SHA256 https://github.com/frida/proxy-libintl/archive/refs/tags/${v}/proxy-libintl-${v}.tar.gz" ;;
-    "getopt_win") echo "GETOPT_WIN_SHA256 https://github.com/ludvikjerabek/getopt-win/archive/refs/tags/v${v}/getopt-win-${v}.tar.gz" ;;
-    "zlib") echo "ZLIB_SHA256 https://zlib.net/zlib-${v}.tar.gz" ;;
-    "openssl") echo "OPENSSL_SHA256 https://github.com/openssl/openssl/releases/download/openssl-${v}/openssl-${v}.tar.gz" ;;
-    "libpng") echo "LIBPNG_SHA256 https://downloads.sourceforge.net/project/libpng/libpng16/${v}/libpng-${v}.tar.gz" ;;
-    "libjpeg_turbo") echo "LIBJPEG_TURBO_SHA256 https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/${v}/libjpeg-turbo-${v}.tar.gz" ;;
-    "pcre2") echo "PCRE2_SHA256 https://github.com/PCRE2Project/pcre2/releases/download/pcre2-${v}/pcre2-${v}.tar.gz" ;;
-    "bzip2") echo "BZIP2_SHA256 https://sourceware.org/pub/bzip2/bzip2-${v}.tar.gz" ;;
-    "xz") echo "XZ_SHA256 https://downloads.sourceforge.net/project/lzmautils/xz-${v}.tar.gz" ;;
-    "brotli") echo "BROTLI_SHA256 https://github.com/google/brotli/archive/refs/tags/v${v}/brotli-${v}.tar.gz" ;;
-    "uchardet") echo "UCHARDET_SHA256 https://www.freedesktop.org/software/uchardet/releases/uchardet-${v}.tar.xz" ;;
-    "icu4c") echo "ICU4C_SHA256 https://github.com/unicode-org/icu/releases/download/release-${v}/icu4c-${v}-sources.tgz" ;;
-    "pixman") echo "PIXMAN_SHA256 https://www.cairographics.org/releases/pixman-${v}.tar.gz" ;;
-    "expat") echo "EXPAT_SHA256 https://github.com/libexpat/libexpat/releases/download/R_${v//./_}/expat-${v}.tar.gz" ;;
-    "libxml2") echo "LIBXML2_SHA256 https://download.gnome.org/sources/libxml2/${v_short}/libxml2-${v}.tar.xz" ;;
-    "nghttp2") echo "NGHTTP2_SHA256 https://github.com/nghttp2/nghttp2/releases/download/v${v}/nghttp2-${v}.tar.gz" ;;
-    "dlfcn") echo "DLFCN_WIN32_SHA256 https://github.com/dlfcn-win32/dlfcn-win32/archive/refs/tags/v${v}/dlfcn-win32-${v}.tar.gz" ;;
-    "libpsl") echo "LIBPSL_SHA256 https://github.com/rockdaboot/libpsl/releases/download/${v}/libpsl-${v}.tar.gz" ;;
-    "orc") echo "ORC_SHA256 https://gstreamer.freedesktop.org/src/orc/orc-${v}.tar.xz" ;;
-    "sqlite") echo "SQLITE_SHA256 https://sqlite.org/${year}/sqlite-autoconf-${v}.tar.gz" ;;
-    "libproxy") echo "LIBPROXY_SHA256 https://github.com/libproxy/libproxy/archive/refs/tags/${v}/libproxy-${v}.tar.gz" ;;
-    "glib") echo "GLIB_SHA256 https://download.gnome.org/sources/glib/${v_short}/glib-${v}.tar.xz" ;;
-    "libsoup") echo "LIBSOUP_SHA256 https://download.gnome.org/sources/libsoup/${v_short}/libsoup-${v}.tar.xz" ;;
-    "freetype") echo "FREETYPE_SHA256 https://sourceforge.net/projects/freetype/files/freetype2/${v}/freetype-${v}.tar.gz" ;;
-    "cairo") echo "CAIRO_SHA256 https://cairographics.org/releases/cairo-${v}.tar.xz" ;;
-    "harfbuzz") echo "HARFBUZZ_SHA256 https://github.com/harfbuzz/harfbuzz/releases/download/${v}/harfbuzz-${v}.tar.xz" ;;
-    "jasper") echo "JASPER_SHA256 https://github.com/jasper-software/jasper/releases/download/version-${v}/jasper-${v}.tar.gz" ;;
-    "tiff") echo "TIFF_SHA256 https://download.osgeo.org/libtiff/tiff-${v}.tar.gz" ;;
-    "libwebp") echo "LIBWEBP_SHA256 https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-${v}.tar.gz" ;;
-    "libogg") echo "LIBOGG_SHA256 https://downloads.xiph.org/releases/ogg/libogg-${v}.tar.gz" ;;
-    "libvorbis") echo "LIBVORBIS_SHA256 https://downloads.xiph.org/releases/vorbis/libvorbis-${v}.tar.gz" ;;
-    "flac") echo "FLAC_SHA256 https://ftp.osuosl.org/pub/xiph/releases/flac/flac-${v}.tar.xz" ;;
-    "wavpack") echo "WAVPACK_SHA256 https://www.wavpack.com/wavpack-${v}.tar.bz2" ;;
-    "opus") echo "OPUS_SHA256 https://downloads.xiph.org/releases/opus/opus-${v}.tar.gz" ;;
-    "opusfile") echo "OPUSFILE_SHA256 https://ftp.osuosl.org/pub/xiph/releases/opus/opusfile-${v}.tar.gz" ;;
-    "speex") echo "SPEEX_SHA256 https://gitlab.xiph.org/xiph/speex/-/archive/Speex-${v}/speex-Speex-${v}.tar.gz" ;;
-    "mpg123") echo "MPG123_SHA256 https://downloads.sourceforge.net/project/mpg123/mpg123/${v}/mpg123-${v}.tar.bz2" ;;
-    "lame") echo "LAME_SHA256 https://downloads.sourceforge.net/project/lame/lame/${v}/lame-${v}.tar.gz" ;;
+    "pkgconf") echo "PKGCONF_SHA256SUM https://github.com/pkgconf/pkgconf/archive/refs/tags/pkgconf-${v}.tar.gz" ;;
+    "proxy_libintl") echo "PROXY_LIBINTL_SHA256SUM https://github.com/frida/proxy-libintl/archive/refs/tags/${v}/proxy-libintl-${v}.tar.gz" ;;
+    "getopt_win") echo "GETOPT_WIN_SHA256SUM https://github.com/ludvikjerabek/getopt-win/archive/refs/tags/v${v}/getopt-win-${v}.tar.gz" ;;
+    "zlib") echo "ZLIB_SHA256SUM https://zlib.net/zlib-${v}.tar.gz" ;;
+    "openssl") echo "OPENSSL_SHA256SUM https://github.com/openssl/openssl/releases/download/openssl-${v}/openssl-${v}.tar.gz" ;;
+    "libpng") echo "LIBPNG_SHA256SUM https://downloads.sourceforge.net/project/libpng/libpng16/${v}/libpng-${v}.tar.gz" ;;
+    "libjpeg_turbo") echo "LIBJPEG_TURBO_SHA256SUM https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/${v}/libjpeg-turbo-${v}.tar.gz" ;;
+    "pcre2") echo "PCRE2_SHA256SUM https://github.com/PCRE2Project/pcre2/releases/download/pcre2-${v}/pcre2-${v}.tar.gz" ;;
+    "bzip2") echo "BZIP2_SHA256SUM https://sourceware.org/pub/bzip2/bzip2-${v}.tar.gz" ;;
+    "xz") echo "XZ_SHA256SUM https://downloads.sourceforge.net/project/lzmautils/xz-${v}.tar.gz" ;;
+    "brotli") echo "BROTLI_SHA256SUM https://github.com/google/brotli/archive/refs/tags/v${v}/brotli-${v}.tar.gz" ;;
+    "uchardet") echo "UCHARDET_SHA256SUM https://www.freedesktop.org/software/uchardet/releases/uchardet-${v}.tar.xz" ;;
+    "icu4c") echo "ICU4C_SHA256SUM https://github.com/unicode-org/icu/releases/download/release-${v}/icu4c-${v}-sources.tgz" ;;
+    "pixman") echo "PIXMAN_SHA256SUM https://www.cairographics.org/releases/pixman-${v}.tar.gz" ;;
+    "expat") echo "EXPAT_SHA256SUM https://github.com/libexpat/libexpat/releases/download/R_${v//./_}/expat-${v}.tar.gz" ;;
+    "libxml2") echo "LIBXML2_SHA256SUM https://download.gnome.org/sources/libxml2/${v_short}/libxml2-${v}.tar.xz" ;;
+    "nghttp2") echo "NGHTTP2_SHA256SUM https://github.com/nghttp2/nghttp2/releases/download/v${v}/nghttp2-${v}.tar.gz" ;;
+    "dlfcn") echo "DLFCN_WIN32_SHA256SUM https://github.com/dlfcn-win32/dlfcn-win32/archive/refs/tags/v${v}/dlfcn-win32-${v}.tar.gz" ;;
+    "libpsl") echo "LIBPSL_SHA256SUM https://github.com/rockdaboot/libpsl/releases/download/${v}/libpsl-${v}.tar.gz" ;;
+    "orc") echo "ORC_SHA256SUM https://gstreamer.freedesktop.org/src/orc/orc-${v}.tar.xz" ;;
+    "sqlite") echo "SQLITE_SHA256SUM https://sqlite.org/${year}/sqlite-autoconf-${v}.tar.gz" ;;
+    "libproxy") echo "LIBPROXY_SHA256SUM https://github.com/libproxy/libproxy/archive/refs/tags/${v}/libproxy-${v}.tar.gz" ;;
+    "glib") echo "GLIB_SHA256SUM https://download.gnome.org/sources/glib/${v_short}/glib-${v}.tar.xz" ;;
+    "libsoup") echo "LIBSOUP_SHA256SUM https://download.gnome.org/sources/libsoup/${v_short}/libsoup-${v}.tar.xz" ;;
+    "freetype") echo "FREETYPE_SHA256SUM https://sourceforge.net/projects/freetype/files/freetype2/${v}/freetype-${v}.tar.gz" ;;
+    "cairo") echo "CAIRO_SHA256SUM https://cairographics.org/releases/cairo-${v}.tar.xz" ;;
+    "harfbuzz") echo "HARFBUZZ_SHA256SUM https://github.com/harfbuzz/harfbuzz/releases/download/${v}/harfbuzz-${v}.tar.xz" ;;
+    "jasper") echo "JASPER_SHA256SUM https://github.com/jasper-software/jasper/releases/download/version-${v}/jasper-${v}.tar.gz" ;;
+    "tiff") echo "TIFF_SHA256SUM https://download.osgeo.org/libtiff/tiff-${v}.tar.gz" ;;
+    "libwebp") echo "LIBWEBP_SHA256SUM https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-${v}.tar.gz" ;;
+    "libogg") echo "LIBOGG_SHA256SUM https://downloads.xiph.org/releases/ogg/libogg-${v}.tar.gz" ;;
+    "libvorbis") echo "LIBVORBIS_SHA256SUM https://downloads.xiph.org/releases/vorbis/libvorbis-${v}.tar.gz" ;;
+    "flac") echo "FLAC_SHA256SUM https://ftp.osuosl.org/pub/xiph/releases/flac/flac-${v}.tar.xz" ;;
+    "wavpack") echo "WAVPACK_SHA256SUM https://www.wavpack.com/wavpack-${v}.tar.bz2" ;;
+    "opus") echo "OPUS_SHA256SUM https://downloads.xiph.org/releases/opus/opus-${v}.tar.gz" ;;
+    "opusfile") echo "OPUSFILE_SHA256SUM https://ftp.osuosl.org/pub/xiph/releases/opus/opusfile-${v}.tar.gz" ;;
+    "speex") echo "SPEEX_SHA256SUM https://gitlab.xiph.org/xiph/speex/-/archive/Speex-${v}/speex-Speex-${v}.tar.gz" ;;
+    "mpg123") echo "MPG123_SHA256SUM https://downloads.sourceforge.net/project/mpg123/mpg123/${v}/mpg123-${v}.tar.bz2" ;;
+    "lame") echo "LAME_SHA256SUM https://downloads.sourceforge.net/project/lame/lame/${v}/lame-${v}.tar.gz" ;;
     "fftw_mingw")
       # Only x86_64 uses the MinGW binary package, arm64 builds FFTW from source.
-      echo "FFTW_MINGW_X86_64_DEBUG_SHA256 https://github.com/strawberrymusicplayer/fftw3-mingw-cross/releases/download/${v}/fftw-x86_64-w64-mingw32-debug-${v}.tar.xz"
-      echo "FFTW_MINGW_X86_64_RELEASE_SHA256 https://github.com/strawberrymusicplayer/fftw3-mingw-cross/releases/download/${v}/fftw-x86_64-w64-mingw32-release-${v}.tar.xz"
+      echo "FFTW_MINGW_X86_64_DEBUG_SHA256SUM https://github.com/strawberrymusicplayer/fftw3-mingw-cross/releases/download/${v}/fftw-x86_64-w64-mingw32-debug-${v}.tar.xz"
+      echo "FFTW_MINGW_X86_64_RELEASE_SHA256SUM https://github.com/strawberrymusicplayer/fftw3-mingw-cross/releases/download/${v}/fftw-x86_64-w64-mingw32-release-${v}.tar.xz"
       ;;
-    "fftw_source") echo "FFTW_SOURCE_SHA256 https://www.fftw.org/fftw-${v}.tar.gz" ;;
-    "musepack") echo "MUSEPACK_SHA256 https://files.musepack.net/source/musepack_src_r${v}.tar.gz" ;;
-    "libopenmpt") echo "LIBOPENMPT_SHA256 https://lib.openmpt.org/files/libopenmpt/src/libopenmpt-${v}+release.msvc.zip" ;;
-    "libgme") echo "LIBGME_SHA256 https://github.com/libgme/game-music-emu/releases/download/${v}/libgme-${v}-src.tar.gz" ;;
-    "fdk_aac") echo "FDK_AAC_SHA256 https://downloads.sourceforge.net/project/opencore-amr/fdk-aac/fdk-aac-${v}.tar.gz" ;;
-    "faad2") echo "FAAD2_SHA256 https://github.com/knik0/faad2/tarball/${v}/faad2-${v}.tar.gz" ;;
-    "faac") echo "FAAC_SHA256 https://github.com/knik0/faac/archive/refs/tags/faac-${v}.tar.gz" ;;
-    "utfcpp") echo "UTFCPP_SHA256 https://github.com/nemtrif/utfcpp/archive/refs/tags/v${v}/utfcpp-${v}.tar.gz" ;;
-    "taglib") echo "TAGLIB_SHA256 https://taglib.org/releases/taglib-${v}.tar.gz" ;;
-    "libbs2b") echo "LIBBS2B_SHA256 https://downloads.sourceforge.net/project/bs2b/libbs2b/${v}/libbs2b-${v}.tar.bz2" ;;
-    "libebur128") echo "LIBEBUR128_SHA256 https://github.com/jiixyj/libebur128/archive/refs/tags/v${v}/libebur128-${v}.tar.gz" ;;
-    "chromaprint") echo "CHROMAPRINT_SHA256 https://github.com/acoustid/chromaprint/releases/download/v${v}/chromaprint-${v}.tar.gz" ;;
+    "fftw_source") echo "FFTW_SOURCE_SHA256SUM https://www.fftw.org/fftw-${v}.tar.gz" ;;
+    "musepack") echo "MUSEPACK_SHA256SUM https://files.musepack.net/source/musepack_src_r${v}.tar.gz" ;;
+    "libopenmpt") echo "LIBOPENMPT_SHA256SUM https://lib.openmpt.org/files/libopenmpt/src/libopenmpt-${v}+release.msvc.zip" ;;
+    "libgme") echo "LIBGME_SHA256SUM https://github.com/libgme/game-music-emu/releases/download/${v}/libgme-${v}-src.tar.gz" ;;
+    "fdk_aac") echo "FDK_AAC_SHA256SUM https://downloads.sourceforge.net/project/opencore-amr/fdk-aac/fdk-aac-${v}.tar.gz" ;;
+    "faad2") echo "FAAD2_SHA256SUM https://github.com/knik0/faad2/tarball/${v}/faad2-${v}.tar.gz" ;;
+    "faac") echo "FAAC_SHA256SUM https://github.com/knik0/faac/archive/refs/tags/faac-${v}.tar.gz" ;;
+    "utfcpp") echo "UTFCPP_SHA256SUM https://github.com/nemtrif/utfcpp/archive/refs/tags/v${v}/utfcpp-${v}.tar.gz" ;;
+    "taglib") echo "TAGLIB_SHA256SUM https://taglib.org/releases/taglib-${v}.tar.gz" ;;
+    "libbs2b") echo "LIBBS2B_SHA256SUM https://downloads.sourceforge.net/project/bs2b/libbs2b/${v}/libbs2b-${v}.tar.bz2" ;;
+    "libebur128") echo "LIBEBUR128_SHA256SUM https://github.com/jiixyj/libebur128/archive/refs/tags/v${v}/libebur128-${v}.tar.gz" ;;
+    "chromaprint") echo "CHROMAPRINT_SHA256SUM https://github.com/acoustid/chromaprint/releases/download/v${v}/chromaprint-${v}.tar.gz" ;;
     "gstreamer")
-      echo "GSTREAMER_SHA256 https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-${v}.tar.xz"
-      echo "GST_PLUGINS_BASE_SHA256 https://gstreamer.freedesktop.org/src/gst-plugins-base/gst-plugins-base-${v}.tar.xz"
-      echo "GST_PLUGINS_GOOD_SHA256 https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-${v}.tar.xz"
-      echo "GST_PLUGINS_BAD_SHA256 https://gstreamer.freedesktop.org/src/gst-plugins-bad/gst-plugins-bad-${v}.tar.xz"
-      echo "GST_PLUGINS_UGLY_SHA256 https://gstreamer.freedesktop.org/src/gst-plugins-ugly/gst-plugins-ugly-${v}.tar.xz"
-      echo "GST_LIBAV_SHA256 https://gstreamer.freedesktop.org/src/gst-libav/gst-libav-${v}.tar.xz"
+      echo "GSTREAMER_SHA256SUM https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-${v}.tar.xz"
+      echo "GST_PLUGINS_BASE_SHA256SUM https://gstreamer.freedesktop.org/src/gst-plugins-base/gst-plugins-base-${v}.tar.xz"
+      echo "GST_PLUGINS_GOOD_SHA256SUM https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-${v}.tar.xz"
+      echo "GST_PLUGINS_BAD_SHA256SUM https://gstreamer.freedesktop.org/src/gst-plugins-bad/gst-plugins-bad-${v}.tar.xz"
+      echo "GST_PLUGINS_UGLY_SHA256SUM https://gstreamer.freedesktop.org/src/gst-plugins-ugly/gst-plugins-ugly-${v}.tar.xz"
+      echo "GST_LIBAV_SHA256SUM https://gstreamer.freedesktop.org/src/gst-libav/gst-libav-${v}.tar.xz"
       ;;
-    "sparsehash") echo "SPARSEHASH_SHA256 https://github.com/sparsehash/sparsehash/archive/refs/tags/sparsehash-${v}.tar.gz" ;;
+    "sparsehash") echo "SPARSEHASH_SHA256SUM https://github.com/sparsehash/sparsehash/archive/refs/tags/sparsehash-${v}.tar.gz" ;;
     "qt")
-      echo "QTBASE_SHA256 https://download.qt.io/official_releases/qt/${v_short}/${v}/submodules/qtbase-everywhere-src-${v}.tar.xz"
-      echo "QTTOOLS_SHA256 https://download.qt.io/official_releases/qt/${v_short}/${v}/submodules/qttools-everywhere-src-${v}.tar.xz"
-      echo "QTIMAGEFORMATS_SHA256 https://download.qt.io/official_releases/qt/${v_short}/${v}/submodules/qtimageformats-everywhere-src-${v}.tar.xz"
+      echo "QTBASE_SHA256SUM https://download.qt.io/official_releases/qt/${v_short}/${v}/submodules/qtbase-everywhere-src-${v}.tar.xz"
+      echo "QTTOOLS_SHA256SUM https://download.qt.io/official_releases/qt/${v_short}/${v}/submodules/qttools-everywhere-src-${v}.tar.xz"
+      echo "QTIMAGEFORMATS_SHA256SUM https://download.qt.io/official_releases/qt/${v_short}/${v}/submodules/qtimageformats-everywhere-src-${v}.tar.xz"
       ;;
-    "kdsingleapplication") echo "KDSINGLEAPPLICATION_SHA256 https://github.com/KDAB/KDSingleApplication/releases/download/v${v}/kdsingleapplication-${v}.tar.gz" ;;
-    "peparse") echo "PE_PARSE_SHA256 https://github.com/trailofbits/pe-parse/archive/refs/tags/v${v}/pe-parse-${v}.tar.gz" ;;
+    "kdsingleapplication") echo "KDSINGLEAPPLICATION_SHA256SUM https://github.com/KDAB/KDSingleApplication/releases/download/v${v}/kdsingleapplication-${v}.tar.gz" ;;
+    "peparse") echo "PE_PARSE_SHA256SUM https://github.com/trailofbits/pe-parse/archive/refs/tags/v${v}/pe-parse-${v}.tar.gz" ;;
     # Git repositories and packages that are not downloaded as files don't have checksums.
     *) ;;
   esac

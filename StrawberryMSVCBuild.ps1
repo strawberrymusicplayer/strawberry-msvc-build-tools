@@ -885,7 +885,7 @@ function GetPackageUrls {
 }
 
 # SHA256 checksums are set in StrawberryPackageVersions.txt by scripts/update.sh when a package is updated.
-# The variable name is the package name in uppercase with - replaced by _, followed by _SHA256.
+# The variable name is the package name in uppercase with - replaced by _, followed by _SHA256SUM.
 function GetPackageChecksum {
   [CmdletBinding()]
   param(
@@ -901,7 +901,7 @@ function GetPackageChecksum {
   if ($package_name -eq 'fftw-mingw') {
     $checksum_name = "$package_name-$arch-$build_type"
   }
-  $checksum_variable = "$($checksum_name.ToLower().Replace('-', '_'))_sha256"
+  $checksum_variable = "$($checksum_name.ToLower().Replace('-', '_'))_sha256sum"
   $checksum = Get-Variable -Name $checksum_variable -Scope Global -ValueOnly -ErrorAction SilentlyContinue
   if (-not $checksum) {
     throw "Missing SHA256 checksum $($checksum_variable.ToUpper()) for package '$package_name' in $version_file"
