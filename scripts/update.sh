@@ -860,13 +860,13 @@ if ! [ -d "${dir}" ]; then
   exit 1
 fi
 
-if ! [ -d "${dir}/../../.git" ]; then
-  error "Missing ${dir}/../../.git"
+if ! [ -d "${dir}/../.git" ]; then
+  error "Missing ${dir}/../.git"
   exit 1
 fi
 
 # Resolve to an absolute path, dirname of . is still . when run from the scripts directory.
-repodir="$(cd "${dir}/../.." && pwd)"
+repodir="$(cd "${dir}/.." && pwd)"
 
 if ! [ -d "${repodir}" ]; then
   error "Missing ${repodir}."

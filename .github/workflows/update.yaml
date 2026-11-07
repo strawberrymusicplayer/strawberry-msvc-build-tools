@@ -60,7 +60,7 @@ jobs:
           SSH_HOST: ${{secrets.SSH_HOST}}
           SSH_PORT: ${{secrets.SSH_PORT}}
           PACKAGES_PATH: ${{secrets.PACKAGES_PATH}}
-        run: ./.github/scripts/update.sh
+        run: ./scripts/update.sh
 
       - name: Remove SSH key
         if: always()

@@ -884,7 +884,7 @@ function GetPackageUrls {
   return $package_urls
 }
 
-# SHA256 checksums are set in StrawberryPackageVersions.txt by .github/scripts/update.sh when a package is updated.
+# SHA256 checksums are set in StrawberryPackageVersions.txt by scripts/update.sh when a package is updated.
 # The variable name is the package name in uppercase with - replaced by _, followed by _SHA256.
 function GetPackageChecksum {
   [CmdletBinding()]
