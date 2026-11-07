@@ -409,47 +409,115 @@ function RecursiveCopy {
   xcopy /E /V /I /F /H /R /Y /B $source_path_backslash $destination_path_backslash
 }
 
-function DownloadFileIfNotExists {
+function DownloadFileWithRetry {
   [CmdletBinding()]
   param(
     [Parameter(Mandatory=$true)]
     [string]$url,
 
     [Parameter(Mandatory=$true)]
-    [string]$destination_path
+    [string]$file_path,
+
+    [int]$retries = 10,
+
+    [int]$retry_delay = 10
   )
-  # Handle SourceForge URLs that end with /download
-  $filename = Split-Path $url -Leaf
-  if ($filename -eq 'download' -and $url -match '/([^/]+)/download$') {
-    $filename = $matches[1]
-  }
-  $file_path = Join-Path $destination_path $filename
-  if (-not (Test-Path $file_path)) {
-    Write-Host "Downloading $url" -ForegroundColor Yellow
+  for ($attempt = 1; $attempt -le $retries; $attempt++) {
+    Write-Host "Downloading $url (attempt $attempt of $retries)" -ForegroundColor Yellow
     try {
-      Invoke-WebRequest -Uri $url -OutFile $file_path -UseBasicParsing -MaximumRedirection 5 -UserAgent "Wget"
+      $response = Invoke-WebRequest -Uri $url -OutFile $file_path -PassThru -UseBasicParsing -MaximumRedirection 5 -UserAgent "Wget"
       # Verify file was downloaded and has content
       if (-not (Test-Path $file_path)) {
         throw "Downloaded file not found at $file_path"
       }
       $file_size = (Get-Item $file_path).Length
       if ($file_size -eq 0) {
-        Remove-Item $file_path -Force
         throw "Downloaded file is empty (0 bytes)"
       }
-      Write-Host "Downloaded $filename ($file_size bytes)" -ForegroundColor Green
+      # Keep the original time of the file from the server, instead of the time it was downloaded
+      $last_modified = $response.Headers['Last-Modified'] | Select-Object -First 1
+      $file_time = [DateTimeOffset]::MinValue
+      if ($last_modified -and [DateTimeOffset]::TryParse($last_modified, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeUniversal, [ref]$file_time)) {
+        (Get-Item $file_path).LastWriteTimeUtc = $file_time.UtcDateTime
+      }
+      Write-Host "Downloaded $(Split-Path $file_path -Leaf) ($file_size bytes)" -ForegroundColor Green
+      return $true
     }
     catch {
       if (Test-Path $file_path) {
         Remove-Item $file_path -Force
       }
-      Write-Error "Failed to download $url : $_"
-      throw
+      Write-Warning "Failed to download $url : $_"
+      # The file doesn't exist on this server, so don't retry, try the next URL instead.
+      if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 404) {
+        return $false
+      }
+      if ($attempt -lt $retries) {
+        Write-Host "Retrying in $retry_delay seconds..." -ForegroundColor Yellow
+        Start-Sleep -Seconds $retry_delay
+      }
     }
   }
-  else {
-    Write-Host "Using cached $filename" -ForegroundColor Cyan
+  return $false
+}
+
+function TestFileChecksum {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory=$true)]
+    [string]$file_path,
+
+    [string]$sha256
+  )
+  if (-not $sha256) {
+    return $true
   }
+  $file_sha256 = (Get-FileHash -Path $file_path -Algorithm SHA256).Hash
+  if ($file_sha256 -ne $sha256) {
+    Write-Warning "SHA256 mismatch for $(Split-Path $file_path -Leaf): expected $($sha256.ToLower()), got $($file_sha256.ToLower())"
+    return $false
+  }
+  Write-Host "SHA256 verified for $(Split-Path $file_path -Leaf)" -ForegroundColor Green
+  return $true
+}
+
+function DownloadFileIfNotExists {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory=$true)]
+    [string[]]$urls,
+
+    [Parameter(Mandatory=$true)]
+    [string]$destination_path,
+
+    [string]$sha256
+  )
+  # Handle SourceForge URLs that end with /download
+  $url = $urls[0]
+  $filename = Split-Path $url -Leaf
+  if ($filename -eq 'download' -and $url -match '/([^/]+)/download$') {
+    $filename = $matches[1]
+  }
+  $file_path = Join-Path $destination_path $filename
+  if (Test-Path $file_path) {
+    if (TestFileChecksum -file_path $file_path -sha256 $sha256) {
+      Write-Host "Using cached $filename" -ForegroundColor Cyan
+      return
+    }
+    Write-Warning "Removing cached $filename and downloading it again"
+    Remove-Item $file_path -Force
+  }
+  # Try the URLs in order, the Strawberry packages server is listed last for each package in GetPackageUrls.
+  foreach ($download_url in $urls) {
+    if (DownloadFileWithRetry -url $download_url -file_path $file_path) {
+      if (TestFileChecksum -file_path $file_path -sha256 $sha256) {
+        return
+      }
+      Remove-Item $file_path -Force
+    }
+    Write-Warning "Giving up on $download_url"
+  }
+  throw "Failed to download $filename from all URLs: $($urls -join ', ')"
 }
 
 function SyncGitRepository {
@@ -459,107 +527,389 @@ function SyncGitRepository {
     [string]$url,
 
     [Parameter(Mandatory=$true)]
-    [string]$destination_path
+    [string]$destination_path,
+
+    [int]$retries = 10,
+
+    [int]$retry_delay = 10
   )
 
   $repo_name = Split-Path $url -Leaf
   $repo_path = Join-Path $destination_path $repo_name
 
   if (Test-Path $repo_path) {
-    Write-Host "Updating repository $url" -ForegroundColor Yellow
     Push-Location $repo_path
     try {
-      & git pull --rebase
-      if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Failed to update repository $url"
+      for ($attempt = 1; $attempt -le $retries; $attempt++) {
+        Write-Host "Updating repository $url (attempt $attempt of $retries)" -ForegroundColor Yellow
+        & git pull --rebase
+        if ($LASTEXITCODE -eq 0) {
+          return
+        }
+        if ($attempt -lt $retries) {
+          Write-Host "Retrying in $retry_delay seconds..." -ForegroundColor Yellow
+          Start-Sleep -Seconds $retry_delay
+        }
       }
+      Write-Warning "Failed to update repository $url"
     }
     finally {
       Pop-Location
     }
   }
   else {
-    Write-Host "Cloning repository $url" -ForegroundColor Yellow
-    & git clone --recurse-submodules $url $repo_path
-    if ($LASTEXITCODE -ne 0) {
-      throw "Failed to clone repository $url"
+    for ($attempt = 1; $attempt -le $retries; $attempt++) {
+      Write-Host "Cloning repository $url (attempt $attempt of $retries)" -ForegroundColor Yellow
+      & git clone --recurse-submodules $url $repo_path
+      if ($LASTEXITCODE -eq 0) {
+        return
+      }
+      # Remove partial clone so the next attempt starts clean
+      if (Test-Path $repo_path) {
+        Remove-Item $repo_path -Recurse -Force
+      }
+      if ($attempt -lt $retries) {
+        Write-Host "Retrying in $retry_delay seconds..." -ForegroundColor Yellow
+        Start-Sleep -Seconds $retry_delay
+      }
     }
+    throw "Failed to clone repository $url"
   }
 }
 
+# Download URLs for each package, tried in order, the file is saved with the filename from the first URL.
+# The Strawberry packages server is listed last for all packages, with the filename from the first URL, which is the name update.sh uploads it as.
+# The VC redistributables are not listed there, since they don't have a checksum to verify the file.
+# Mirrors are based on the ones used by strawberry-msvc-dependencies, only mirrors that have the files are used.
+# All URLs for a package must have the same file, since they are checked against the same SHA256 checksum.
 function GetPackageUrls {
   [CmdletBinding()]
   param()
+  $sourceforge_mirror1 = "downloads.sourceforge.net"
+  $sourceforge_mirror2 = "netix.dl.sourceforge.net"
+  $qt_mirror1 = "ftp.fau.de/qtproject"
+  $qt_mirror2 = "mirrors.ocf.berkeley.edu/qt"
+  $packages_server = "https://packages.strawberrymusicplayer.org"
   $package_urls = @{
-    'pkgconf' = "https://github.com/pkgconf/pkgconf/archive/refs/tags/pkgconf-$pkgconf_version.tar.gz"
-    'proxy-libintl' = "https://github.com/frida/proxy-libintl/archive/refs/tags/$proxy_libintl_version/proxy-libintl-$proxy_libintl_version.tar.gz"
-    'getopt-win' = "https://github.com/ludvikjerabek/getopt-win/archive/refs/tags/v$getopt_win_version/getopt-win-$getopt_win_version.tar.gz"
-    'zlib' = "https://zlib.net/zlib-$zlib_version.tar.gz"
-    'openssl' = "https://github.com/openssl/openssl/releases/download/openssl-$openssl_version/openssl-$openssl_version.tar.gz"
-    'libpng' = "https://downloads.sourceforge.net/project/libpng/libpng16/$libpng_version/libpng-$libpng_version.tar.gz"
-    'libjpeg-turbo' = "https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/$libjpeg_turbo_version/libjpeg-turbo-$libjpeg_turbo_version.tar.gz"
-    'pcre2' = "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-$pcre2_version/pcre2-$pcre2_version.tar.gz"
-    'bzip2' = "https://sourceware.org/pub/bzip2/bzip2-$bzip2_version.tar.gz"
-    'xz' = "https://downloads.sourceforge.net/project/lzmautils/xz-$xz_version.tar.gz"
-    'brotli' = "https://github.com/google/brotli/archive/refs/tags/v$brotli_version/brotli-$brotli_version.tar.gz"
-    'uchardet' = "https://www.freedesktop.org/software/uchardet/releases/uchardet-$uchardet_version.tar.xz"
-    'icu4c' = "https://github.com/unicode-org/icu/releases/download/release-$icu4c_version/icu4c-$icu4c_version-sources.tgz"
-    'pixman' = "https://www.cairographics.org/releases/pixman-$pixman_version.tar.gz"
-    'expat' = "https://github.com/libexpat/libexpat/releases/download/R_$expat_version_underscore/expat-$expat_version.tar.gz"
-    'libxml2' = "https://download.gnome.org/sources/libxml2/$libxml2_version_short/libxml2-$libxml2_version.tar.xz"
-    'nghttp2' = "https://github.com/nghttp2/nghttp2/releases/download/v$nghttp2_version/nghttp2-$nghttp2_version.tar.gz"
-    'dlfcn-win32' = "https://github.com/dlfcn-win32/dlfcn-win32/archive/refs/tags/v$dlfcn_version/dlfcn-win32-$dlfcn_version.tar.gz"
-    'libpsl' = "https://github.com/rockdaboot/libpsl/releases/download/$libpsl_version/libpsl-$libpsl_version.tar.gz"
-    'orc' = "https://gstreamer.freedesktop.org/src/orc/orc-$orc_version.tar.xz"
-    'sqlite' = "https://sqlite.org/$sqlite_year/sqlite-autoconf-$sqlite_version.tar.gz"
-    'libproxy' = "https://github.com/libproxy/libproxy/archive/refs/tags/$libproxy_version/libproxy-$libproxy_version.tar.gz"
-    'glib' = "https://download.gnome.org/sources/glib/$glib_version_short/glib-$glib_version.tar.xz"
-    'libsoup' = "https://download.gnome.org/sources/libsoup/$libsoup_version_short/libsoup-$libsoup_version.tar.xz"
-    'freetype' = "https://sourceforge.net/projects/freetype/files/freetype2/$freetype_version/freetype-$freetype_version.tar.gz"
-    'cairo' = "https://cairographics.org/releases/cairo-$cairo_version.tar.xz"
-    'harfbuzz' = "https://github.com/harfbuzz/harfbuzz/releases/download/$harfbuzz_version/harfbuzz-$harfbuzz_version.tar.xz"
-    'jasper' = "https://github.com/jasper-software/jasper/releases/download/version-$jasper_version/jasper-$jasper_version.tar.gz"
-    'tiff' = "https://download.osgeo.org/libtiff/tiff-$tiff_version.tar.gz"
-    'libwebp' = "https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-$libwebp_version.tar.gz"
-    'libogg' = "https://downloads.xiph.org/releases/ogg/libogg-$libogg_version.tar.gz"
-    'libvorbis' = "https://downloads.xiph.org/releases/vorbis/libvorbis-$libvorbis_version.tar.gz"
-    'flac' = "https://ftp.osuosl.org/pub/xiph/releases/flac/flac-$flac_version.tar.xz"
-    'wavpack' = "https://www.wavpack.com/wavpack-$wavpack_version.tar.bz2"
-    'opus' = "https://downloads.xiph.org/releases/opus/opus-$opus_version.tar.gz"
-    'opusfile' = "https://ftp.osuosl.org/pub/xiph/releases/opus/opusfile-$opusfile_version.tar.gz"
-    'speex' = "https://gitlab.xiph.org/xiph/speex/-/archive/Speex-$speex_version/speex-Speex-$speex_version.tar.gz"
-    'mpg123' = "https://downloads.sourceforge.net/project/mpg123/mpg123/$mpg123_version/mpg123-$mpg123_version.tar.bz2"
-    'lame' = "https://downloads.sourceforge.net/project/lame/lame/$lame_version/lame-$lame_version.tar.gz"
-    'fftw-mingw' = "https://github.com/strawberrymusicplayer/fftw3-mingw-cross/releases/download/${fftw_mingw_version}/fftw-${arch}-w64-mingw32-${build_type}-${fftw_mingw_version}.tar.xz"
-    'fftw-source' = "https://www.fftw.org/fftw-$fftw_source_version.tar.gz"
-    'musepack' = "https://files.musepack.net/source/musepack_src_r$musepack_version.tar.gz"
-    'libopenmpt' = "https://lib.openmpt.org/files/libopenmpt/src/libopenmpt-$libopenmpt_version+release.msvc.zip"
-    'libgme' = "https://github.com/libgme/game-music-emu/releases/download/$libgme_version/libgme-$libgme_version-src.tar.gz"
-    'fdk-aac' = "https://downloads.sourceforge.net/project/opencore-amr/fdk-aac/fdk-aac-$fdk_aac_version.tar.gz"
-    'faad2' = "https://github.com/knik0/faad2/tarball/$faad2_version/faad2-$faad2_version.tar.gz"
-    'faac' = "https://github.com/knik0/faac/archive/refs/tags/faac-$faac_version.tar.gz"
-    'utfcpp' = "https://github.com/nemtrif/utfcpp/archive/refs/tags/v$utfcpp_version/utfcpp-$utfcpp_version.tar.gz"
-    'taglib' = "https://taglib.org/releases/taglib-$taglib_version.tar.gz"
-    'libbs2b' = "https://downloads.sourceforge.net/project/bs2b/libbs2b/$libbs2b_version/libbs2b-$libbs2b_version.tar.bz2"
-    'libebur128' = "https://github.com/jiixyj/libebur128/archive/refs/tags/v$libebur128_version/libebur128-$libebur128_version.tar.gz"
-    'chromaprint' = "https://github.com/acoustid/chromaprint/releases/download/v$chromaprint_version/chromaprint-$chromaprint_version.tar.gz"
-    'gstreamer' = "https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-$gstreamer_version.tar.xz"
-    'gst-plugins-base' = "https://gstreamer.freedesktop.org/src/gst-plugins-base/gst-plugins-base-$gstreamer_version.tar.xz"
-    'gst-plugins-good' = "https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-$gstreamer_version.tar.xz"
-    'gst-plugins-bad' = "https://gstreamer.freedesktop.org/src/gst-plugins-bad/gst-plugins-bad-$gstreamer_version.tar.xz"
-    'gst-plugins-ugly' = "https://gstreamer.freedesktop.org/src/gst-plugins-ugly/gst-plugins-ugly-$gstreamer_version.tar.xz"
-    'gst-libav' = "https://gstreamer.freedesktop.org/src/gst-libav/gst-libav-$gstreamer_version.tar.xz"
-    'sparsehash' = "https://github.com/sparsehash/sparsehash/archive/refs/tags/sparsehash-$sparsehash_version.tar.gz"
-    'qtbase' = "https://download.qt.io/official_releases/qt/$qt_version_short/$qt_version/submodules/qtbase-everywhere-src-$qt_version.tar.xz"
-    'qttools' = "https://download.qt.io/official_releases/qt/$qt_version_short/$qt_version/submodules/qttools-everywhere-src-$qt_version.tar.xz"
-    'qtimageformats' = "https://download.qt.io/official_releases/qt/$qt_version_short/$qt_version/submodules/qtimageformats-everywhere-src-$qt_version.tar.xz"
-    'kdsingleapplication' = "https://github.com/KDAB/KDSingleApplication/releases/download/v$kdsingleapplication_version/kdsingleapplication-$kdsingleapplication_version.tar.gz"
-    'pe-parse' = "https://github.com/trailofbits/pe-parse/archive/refs/tags/v$peparse_version/pe-parse-$peparse_version.tar.gz"
-    'vc-redist-x86' = "https://aka.ms/vc14/vc_redist.x86.exe"
-    'vc-redist-x64' = "https://aka.ms/vc14/vc_redist.x64.exe"
-    "vc-redist-arm64" = "https://aka.ms/vc14/vc_redist.arm64.exe"
+    'pkgconf' = @(
+      "https://github.com/pkgconf/pkgconf/archive/refs/tags/pkgconf-$pkgconf_version.tar.gz",
+      "$packages_server/pkgconf-$pkgconf_version.tar.gz"
+    )
+    'proxy-libintl' = @(
+      "https://github.com/frida/proxy-libintl/archive/refs/tags/$proxy_libintl_version/proxy-libintl-$proxy_libintl_version.tar.gz",
+      "$packages_server/proxy-libintl-$proxy_libintl_version.tar.gz"
+    )
+    'getopt-win' = @(
+      "https://github.com/ludvikjerabek/getopt-win/archive/refs/tags/v$getopt_win_version/getopt-win-$getopt_win_version.tar.gz",
+      "$packages_server/getopt-win-$getopt_win_version.tar.gz"
+    )
+    'zlib' = @(
+      "https://zlib.net/zlib-$zlib_version.tar.gz",
+      "https://github.com/madler/zlib/releases/download/v$zlib_version/zlib-$zlib_version.tar.gz",
+      "$packages_server/zlib-$zlib_version.tar.gz"
+    )
+    'openssl' = @(
+      "https://github.com/openssl/openssl/releases/download/openssl-$openssl_version/openssl-$openssl_version.tar.gz",
+      "https://www.openssl.org/source/openssl-$openssl_version.tar.gz",
+      "$packages_server/openssl-$openssl_version.tar.gz"
+    )
+    'libpng' = @(
+      "https://$sourceforge_mirror1/project/libpng/libpng16/$libpng_version/libpng-$libpng_version.tar.gz",
+      "https://$sourceforge_mirror2/project/libpng/libpng16/$libpng_version/libpng-$libpng_version.tar.gz",
+      "$packages_server/libpng-$libpng_version.tar.gz"
+    )
+    'libjpeg-turbo' = @(
+      "https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/$libjpeg_turbo_version/libjpeg-turbo-$libjpeg_turbo_version.tar.gz",
+      "$packages_server/libjpeg-turbo-$libjpeg_turbo_version.tar.gz"
+    )
+    'pcre2' = @(
+      "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-$pcre2_version/pcre2-$pcre2_version.tar.gz",
+      "$packages_server/pcre2-$pcre2_version.tar.gz"
+    )
+    'bzip2' = @(
+      "https://sourceware.org/pub/bzip2/bzip2-$bzip2_version.tar.gz",
+      "https://ftp.funet.fi/pub/mirrors/sourceware.org/pub/bzip2/bzip2-$bzip2_version.tar.gz",
+      "$packages_server/bzip2-$bzip2_version.tar.gz"
+    )
+    'xz' = @(
+      "https://$sourceforge_mirror1/project/lzmautils/xz-$xz_version.tar.gz",
+      "https://github.com/tukaani-project/xz/releases/download/v$xz_version/xz-$xz_version.tar.gz",
+      "https://$sourceforge_mirror2/project/lzmautils/xz-$xz_version.tar.gz",
+      "$packages_server/xz-$xz_version.tar.gz"
+    )
+    'brotli' = @(
+      "https://github.com/google/brotli/archive/refs/tags/v$brotli_version/brotli-$brotli_version.tar.gz",
+      "$packages_server/brotli-$brotli_version.tar.gz"
+    )
+    'uchardet' = @(
+      "https://www.freedesktop.org/software/uchardet/releases/uchardet-$uchardet_version.tar.xz",
+      "$packages_server/uchardet-$uchardet_version.tar.xz"
+    )
+    'icu4c' = @(
+      "https://github.com/unicode-org/icu/releases/download/release-$icu4c_version/icu4c-$icu4c_version-sources.tgz",
+      "$packages_server/icu4c-$icu4c_version-sources.tgz"
+    )
+    'pixman' = @(
+      "https://www.cairographics.org/releases/pixman-$pixman_version.tar.gz",
+      "https://xorg.freedesktop.org/releases/individual/lib/pixman-$pixman_version.tar.gz",
+      "$packages_server/pixman-$pixman_version.tar.gz"
+    )
+    'expat' = @(
+      "https://github.com/libexpat/libexpat/releases/download/R_$expat_version_underscore/expat-$expat_version.tar.gz",
+      "https://$sourceforge_mirror1/project/expat/expat/$expat_version/expat-$expat_version.tar.gz",
+      "https://$sourceforge_mirror2/project/expat/expat/$expat_version/expat-$expat_version.tar.gz",
+      "$packages_server/expat-$expat_version.tar.gz"
+    )
+    'libxml2' = @(
+      "https://download.gnome.org/sources/libxml2/$libxml2_version_short/libxml2-$libxml2_version.tar.xz",
+      "$packages_server/libxml2-$libxml2_version.tar.xz"
+    )
+    'nghttp2' = @(
+      "https://github.com/nghttp2/nghttp2/releases/download/v$nghttp2_version/nghttp2-$nghttp2_version.tar.gz",
+      "$packages_server/nghttp2-$nghttp2_version.tar.gz"
+    )
+    'dlfcn-win32' = @(
+      "https://github.com/dlfcn-win32/dlfcn-win32/archive/refs/tags/v$dlfcn_version/dlfcn-win32-$dlfcn_version.tar.gz",
+      "$packages_server/dlfcn-win32-$dlfcn_version.tar.gz"
+    )
+    'libpsl' = @(
+      "https://github.com/rockdaboot/libpsl/releases/download/$libpsl_version/libpsl-$libpsl_version.tar.gz",
+      "$packages_server/libpsl-$libpsl_version.tar.gz"
+    )
+    'orc' = @(
+      "https://gstreamer.freedesktop.org/src/orc/orc-$orc_version.tar.xz",
+      "$packages_server/orc-$orc_version.tar.xz"
+    )
+    'sqlite' = @(
+      "https://sqlite.org/$sqlite_year/sqlite-autoconf-$sqlite_version.tar.gz",
+      "$packages_server/sqlite-autoconf-$sqlite_version.tar.gz"
+    )
+    'libproxy' = @(
+      "https://github.com/libproxy/libproxy/archive/refs/tags/$libproxy_version/libproxy-$libproxy_version.tar.gz",
+      "$packages_server/libproxy-$libproxy_version.tar.gz"
+    )
+    'glib' = @(
+      "https://download.gnome.org/sources/glib/$glib_version_short/glib-$glib_version.tar.xz",
+      "$packages_server/glib-$glib_version.tar.xz"
+    )
+    'libsoup' = @(
+      "https://download.gnome.org/sources/libsoup/$libsoup_version_short/libsoup-$libsoup_version.tar.xz",
+      "$packages_server/libsoup-$libsoup_version.tar.xz"
+    )
+    'freetype' = @(
+      "https://sourceforge.net/projects/freetype/files/freetype2/$freetype_version/freetype-$freetype_version.tar.gz",
+      "https://$sourceforge_mirror1/project/freetype/freetype2/$freetype_version/freetype-$freetype_version.tar.gz",
+      "https://$sourceforge_mirror2/project/freetype/freetype2/$freetype_version/freetype-$freetype_version.tar.gz",
+      "$packages_server/freetype-$freetype_version.tar.gz"
+    )
+    'cairo' = @(
+      "https://cairographics.org/releases/cairo-$cairo_version.tar.xz",
+      "$packages_server/cairo-$cairo_version.tar.xz"
+    )
+    'harfbuzz' = @(
+      "https://github.com/harfbuzz/harfbuzz/releases/download/$harfbuzz_version/harfbuzz-$harfbuzz_version.tar.xz",
+      "$packages_server/harfbuzz-$harfbuzz_version.tar.xz"
+    )
+    'jasper' = @(
+      "https://github.com/jasper-software/jasper/releases/download/version-$jasper_version/jasper-$jasper_version.tar.gz",
+      "$packages_server/jasper-$jasper_version.tar.gz"
+    )
+    'tiff' = @(
+      "https://download.osgeo.org/libtiff/tiff-$tiff_version.tar.gz",
+      "$packages_server/tiff-$tiff_version.tar.gz"
+    )
+    'libwebp' = @(
+      "https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-$libwebp_version.tar.gz",
+      "$packages_server/libwebp-$libwebp_version.tar.gz"
+    )
+    'libogg' = @(
+      "https://downloads.xiph.org/releases/ogg/libogg-$libogg_version.tar.gz",
+      "https://github.com/xiph/ogg/releases/download/v$libogg_version/libogg-$libogg_version.tar.gz",
+      "$packages_server/libogg-$libogg_version.tar.gz"
+    )
+    'libvorbis' = @(
+      "https://downloads.xiph.org/releases/vorbis/libvorbis-$libvorbis_version.tar.gz",
+      "https://github.com/xiph/vorbis/releases/download/v$libvorbis_version/libvorbis-$libvorbis_version.tar.gz",
+      "$packages_server/libvorbis-$libvorbis_version.tar.gz"
+    )
+    'flac' = @(
+      "https://ftp.osuosl.org/pub/xiph/releases/flac/flac-$flac_version.tar.xz",
+      "https://github.com/xiph/flac/releases/download/$flac_version/flac-$flac_version.tar.xz",
+      "https://downloads.xiph.org/releases/flac/flac-$flac_version.tar.xz",
+      "$packages_server/flac-$flac_version.tar.xz"
+    )
+    'wavpack' = @(
+      "https://www.wavpack.com/wavpack-$wavpack_version.tar.bz2",
+      "$packages_server/wavpack-$wavpack_version.tar.bz2"
+    )
+    'opus' = @(
+      "https://downloads.xiph.org/releases/opus/opus-$opus_version.tar.gz",
+      "https://ftp.osuosl.org/pub/xiph/releases/opus/opus-$opus_version.tar.gz",
+      "$packages_server/opus-$opus_version.tar.gz"
+    )
+    'opusfile' = @(
+      "https://ftp.osuosl.org/pub/xiph/releases/opus/opusfile-$opusfile_version.tar.gz",
+      "https://downloads.xiph.org/releases/opus/opusfile-$opusfile_version.tar.gz",
+      "https://github.com/xiph/opusfile/releases/download/v$opusfile_version/opusfile-$opusfile_version.tar.gz",
+      "$packages_server/opusfile-$opusfile_version.tar.gz"
+    )
+    'speex' = @(
+      "https://gitlab.xiph.org/xiph/speex/-/archive/Speex-$speex_version/speex-Speex-$speex_version.tar.gz",
+      "$packages_server/speex-Speex-$speex_version.tar.gz"
+    )
+    'mpg123' = @(
+      "https://$sourceforge_mirror1/project/mpg123/mpg123/$mpg123_version/mpg123-$mpg123_version.tar.bz2",
+      "https://$sourceforge_mirror2/project/mpg123/mpg123/$mpg123_version/mpg123-$mpg123_version.tar.bz2",
+      "https://www.mpg123.de/download/mpg123-$mpg123_version.tar.bz2",
+      "$packages_server/mpg123-$mpg123_version.tar.bz2"
+    )
+    'lame' = @(
+      "https://$sourceforge_mirror1/project/lame/lame/$lame_version/lame-$lame_version.tar.gz",
+      "https://$sourceforge_mirror2/project/lame/lame/$lame_version/lame-$lame_version.tar.gz",
+      "$packages_server/lame-$lame_version.tar.gz"
+    )
+    'fftw-mingw' = @(
+      "https://github.com/strawberrymusicplayer/fftw3-mingw-cross/releases/download/${fftw_mingw_version}/fftw-${arch}-w64-mingw32-${build_type}-${fftw_mingw_version}.tar.xz",
+      "$packages_server/fftw-${arch}-w64-mingw32-${build_type}-${fftw_mingw_version}.tar.xz"
+    )
+    'fftw-source' = @(
+      "https://www.fftw.org/fftw-$fftw_source_version.tar.gz",
+      "$packages_server/fftw-$fftw_source_version.tar.gz"
+    )
+    'musepack' = @(
+      "https://files.musepack.net/source/musepack_src_r$musepack_version.tar.gz",
+      "$packages_server/musepack_src_r$musepack_version.tar.gz"
+    )
+    'libopenmpt' = @(
+      "https://lib.openmpt.org/files/libopenmpt/src/libopenmpt-$libopenmpt_version+release.msvc.zip",
+      "$packages_server/libopenmpt-$libopenmpt_version+release.msvc.zip"
+    )
+    'libgme' = @(
+      "https://github.com/libgme/game-music-emu/releases/download/$libgme_version/libgme-$libgme_version-src.tar.gz",
+      "$packages_server/libgme-$libgme_version-src.tar.gz"
+    )
+    'fdk-aac' = @(
+      "https://$sourceforge_mirror1/project/opencore-amr/fdk-aac/fdk-aac-$fdk_aac_version.tar.gz",
+      "https://$sourceforge_mirror2/project/opencore-amr/fdk-aac/fdk-aac-$fdk_aac_version.tar.gz",
+      "$packages_server/fdk-aac-$fdk_aac_version.tar.gz"
+    )
+    'faad2' = @(
+      "https://github.com/knik0/faad2/tarball/$faad2_version/faad2-$faad2_version.tar.gz",
+      "$packages_server/faad2-$faad2_version.tar.gz"
+    )
+    'faac' = @(
+      "https://github.com/knik0/faac/archive/refs/tags/faac-$faac_version.tar.gz",
+      "$packages_server/faac-$faac_version.tar.gz"
+    )
+    'utfcpp' = @(
+      "https://github.com/nemtrif/utfcpp/archive/refs/tags/v$utfcpp_version/utfcpp-$utfcpp_version.tar.gz",
+      "$packages_server/utfcpp-$utfcpp_version.tar.gz"
+    )
+    'taglib' = @(
+      "https://taglib.org/releases/taglib-$taglib_version.tar.gz",
+      "https://github.com/taglib/taglib/releases/download/v$taglib_version/taglib-$taglib_version.tar.gz",
+      "$packages_server/taglib-$taglib_version.tar.gz"
+    )
+    'libbs2b' = @(
+      "https://$sourceforge_mirror1/project/bs2b/libbs2b/$libbs2b_version/libbs2b-$libbs2b_version.tar.bz2",
+      "https://$sourceforge_mirror2/project/bs2b/libbs2b/$libbs2b_version/libbs2b-$libbs2b_version.tar.bz2",
+      "$packages_server/libbs2b-$libbs2b_version.tar.bz2"
+    )
+    'libebur128' = @(
+      "https://github.com/jiixyj/libebur128/archive/refs/tags/v$libebur128_version/libebur128-$libebur128_version.tar.gz",
+      "$packages_server/libebur128-$libebur128_version.tar.gz"
+    )
+    'chromaprint' = @(
+      "https://github.com/acoustid/chromaprint/releases/download/v$chromaprint_version/chromaprint-$chromaprint_version.tar.gz",
+      "$packages_server/chromaprint-$chromaprint_version.tar.gz"
+    )
+    'gstreamer' = @(
+      "https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-$gstreamer_version.tar.xz",
+      "$packages_server/gstreamer-$gstreamer_version.tar.xz"
+    )
+    'gst-plugins-base' = @(
+      "https://gstreamer.freedesktop.org/src/gst-plugins-base/gst-plugins-base-$gstreamer_version.tar.xz",
+      "$packages_server/gst-plugins-base-$gstreamer_version.tar.xz"
+    )
+    'gst-plugins-good' = @(
+      "https://gstreamer.freedesktop.org/src/gst-plugins-good/gst-plugins-good-$gstreamer_version.tar.xz",
+      "$packages_server/gst-plugins-good-$gstreamer_version.tar.xz"
+    )
+    'gst-plugins-bad' = @(
+      "https://gstreamer.freedesktop.org/src/gst-plugins-bad/gst-plugins-bad-$gstreamer_version.tar.xz",
+      "$packages_server/gst-plugins-bad-$gstreamer_version.tar.xz"
+    )
+    'gst-plugins-ugly' = @(
+      "https://gstreamer.freedesktop.org/src/gst-plugins-ugly/gst-plugins-ugly-$gstreamer_version.tar.xz",
+      "$packages_server/gst-plugins-ugly-$gstreamer_version.tar.xz"
+    )
+    'gst-libav' = @(
+      "https://gstreamer.freedesktop.org/src/gst-libav/gst-libav-$gstreamer_version.tar.xz",
+      "$packages_server/gst-libav-$gstreamer_version.tar.xz"
+    )
+    'sparsehash' = @(
+      "https://github.com/sparsehash/sparsehash/archive/refs/tags/sparsehash-$sparsehash_version.tar.gz",
+      "$packages_server/sparsehash-$sparsehash_version.tar.gz"
+    )
+    'qtbase' = @(
+      "https://download.qt.io/official_releases/qt/$qt_version_short/$qt_version/submodules/qtbase-everywhere-src-$qt_version.tar.xz",
+      "https://$qt_mirror1/official_releases/qt/$qt_version_short/$qt_version/submodules/qtbase-everywhere-src-$qt_version.tar.xz",
+      "https://$qt_mirror2/official_releases/qt/$qt_version_short/$qt_version/submodules/qtbase-everywhere-src-$qt_version.tar.xz",
+      "$packages_server/qtbase-everywhere-src-$qt_version.tar.xz"
+    )
+    'qttools' = @(
+      "https://download.qt.io/official_releases/qt/$qt_version_short/$qt_version/submodules/qttools-everywhere-src-$qt_version.tar.xz",
+      "https://$qt_mirror1/official_releases/qt/$qt_version_short/$qt_version/submodules/qttools-everywhere-src-$qt_version.tar.xz",
+      "https://$qt_mirror2/official_releases/qt/$qt_version_short/$qt_version/submodules/qttools-everywhere-src-$qt_version.tar.xz",
+      "$packages_server/qttools-everywhere-src-$qt_version.tar.xz"
+    )
+    'qtimageformats' = @(
+      "https://download.qt.io/official_releases/qt/$qt_version_short/$qt_version/submodules/qtimageformats-everywhere-src-$qt_version.tar.xz",
+      "https://$qt_mirror1/official_releases/qt/$qt_version_short/$qt_version/submodules/qtimageformats-everywhere-src-$qt_version.tar.xz",
+      "https://$qt_mirror2/official_releases/qt/$qt_version_short/$qt_version/submodules/qtimageformats-everywhere-src-$qt_version.tar.xz",
+      "$packages_server/qtimageformats-everywhere-src-$qt_version.tar.xz"
+    )
+    'kdsingleapplication' = @(
+      "https://github.com/KDAB/KDSingleApplication/releases/download/v$kdsingleapplication_version/kdsingleapplication-$kdsingleapplication_version.tar.gz",
+      "$packages_server/kdsingleapplication-$kdsingleapplication_version.tar.gz"
+    )
+    'pe-parse' = @(
+      "https://github.com/trailofbits/pe-parse/archive/refs/tags/v$peparse_version/pe-parse-$peparse_version.tar.gz",
+      "$packages_server/pe-parse-$peparse_version.tar.gz"
+    )
+    'vc-redist-x86' = @("https://aka.ms/vc14/vc_redist.x86.exe")
+    'vc-redist-x64' = @("https://aka.ms/vc14/vc_redist.x64.exe")
+    'vc-redist-arm64' = @("https://aka.ms/vc14/vc_redist.arm64.exe")
   }
   return $package_urls
+}
+
+# SHA256 checksums are set in StrawberryPackageVersions.txt by .github/scripts/update.sh when a package is updated.
+# The variable name is the package name in uppercase with - replaced by _, followed by _SHA256.
+function GetPackageChecksum {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory=$true)]
+    [string]$package_name
+  )
+  # The VC redistributable URLs are not versioned, so they can't have a fixed checksum.
+  if ($package_name -like 'vc-redist-*') {
+    return $null
+  }
+  $checksum_name = $package_name
+  # The FFTW MinGW binary package is different for each arch and build type.
+  if ($package_name -eq 'fftw-mingw') {
+    $checksum_name = "$package_name-$arch-$build_type"
+  }
+  $checksum_variable = "$($checksum_name.ToLower().Replace('-', '_'))_sha256"
+  $checksum = Get-Variable -Name $checksum_variable -Scope Global -ValueOnly -ErrorAction SilentlyContinue
+  if (-not $checksum) {
+    throw "Missing SHA256 checksum $($checksum_variable.ToUpper()) for package '$package_name' in $version_file"
+  }
+  if ($checksum -notmatch '^[0-9a-fA-F]{64}$') {
+    throw "Invalid SHA256 checksum $($checksum_variable.ToUpper()) for package '$package_name' in $version_file"
+  }
+  return $checksum
 }
 
 function GetGitRepoUrls {
@@ -620,8 +970,8 @@ function DownloadPackage {
     if (!$package_urls.ContainsKey($package_name)) {
       throw "Package '$package_name' not found in dependency configuration"
     }
-    $package_url = $package_urls[$package_name]
-    DownloadFileIfNotExists -url $package_url -destination_path $downloads_path
+    $package_sha256 = GetPackageChecksum -package_name $package_name
+    DownloadFileIfNotExists -urls $package_urls[$package_name] -destination_path $downloads_path -sha256 $package_sha256
     Write-Host "✓ Package $package_name is available" -ForegroundColor Green
   }
   catch {
