@@ -480,6 +480,11 @@ function update_package() {
       # Check the remote, a fresh clone in GitHub Actions doesn't have the local branches from earlier runs.
       # The branch can exist without a pull request if creating the pull request failed in an earlier run.
       if ! git ls-remote --exit-code --heads origin "${branch}" >/dev/null 2>&1; then
+        # A local branch that was never pushed can have commits that would be lost, so leave it alone.
+        if git show-ref --verify --quiet "refs/heads/${branch}"; then
+          error "${branch} exists locally but not on origin, it needs to be pushed or deleted manually."
+          return 1
+        fi
         status "${package_name}: updating from ${package_version_current} to ${package_version_latest}..."
         # Get the checksums first, so an update isn't pushed when the files can't be downloaded yet.
         get_package_checksums "${package_name}" "${package_version_latest}" "${package_year}" || return 1
@@ -487,7 +492,7 @@ function update_package() {
         # Continue with the update if the upload fails, the packages server is only a fallback.
         upload_package_files "${package_name}"
         remove_package_files
-        push_update_branch || exit 1
+        push_update_branch -b || exit 1
       fi
       gh pr create --repo "${repo}" --head "${branch}" --base "master" --title "Update ${package_name} to ${package_version_latest}" --body "Update ${package_name} from ${package_version_current} to ${package_version_latest}" || exit 1
     else
@@ -495,17 +500,23 @@ function update_package() {
       # Recreate the branch from master so it can still be merged.
       pr_mergeable=$(gh pr list --repo "${repo}" --head "${branch}" --state open --json mergeable --jq '.[0].mergeable // ""')
       if [ "${pr_mergeable}" = "CONFLICTING" ]; then
-        # Only recreate branches with just the generated commit, so commits added by hand aren't lost.
+        # Only recreate branches with just the generated commit and changes, so commits and edits added by hand aren't lost.
         git fetch origin "${branch}" >/dev/null 2>&1 || exit 1
         branch_head=$(git rev-parse "origin/${branch}") || exit 1
-        if [ "$(git rev-list --count "origin/master..${branch_head}")" = "1" ] && [ "$(git log -1 --format=%s "${branch_head}")" = "Update ${package_name}" ] && [ "$(git diff --name-only "origin/master...${branch_head}")" = "${versions_file}" ]; then
+        # The local branch is reset too, so it can't have commits that aren't on origin.
+        if git show-ref --verify --quiet "refs/heads/${branch}" && ! [ "$(git rev-parse "refs/heads/${branch}")" = "${branch_head}" ]; then
+          error "${branch} conflicts with master and differs locally from origin, it needs to be resolved manually."
+        # The generated changes include the checksums, so get them before checking the branch.
+        elif ! get_package_checksums "${package_name}" "${package_version_latest}" "${package_year}"; then
+          return 1
+        elif update_branch_is_generated "${branch_head}"; then
           status "${package_name}: recreating ${branch} from master..."
-          get_package_checksums "${package_name}" "${package_version_latest}" "${package_year}" || return 1
           upload_package_files "${package_name}"
           remove_package_files
           # Only overwrite the commit that was checked.
-          push_update_branch "--force-with-lease=${branch}:${branch_head}" || exit 1
+          push_update_branch -B "--force-with-lease=${branch}:${branch_head}" || exit 1
         else
+          remove_package_files
           error "${branch} conflicts with master and has other changes, it needs to be resolved manually."
         fi
       fi
@@ -766,23 +777,45 @@ function upload_package_files() {
 
 }
 
-# Sets the checksums from get_package_checksums in the versions file, new checksums are added after the version of the package.
-function set_package_checksums() {
+# Uses the variables from update_package.
+# Updates the version, year and checksums in the versions file, the arguments are passed to sed.
+# The checksums from get_package_checksums replace the existing ones, and are put right after the version of the package.
+function update_versions_file() {
 
-  local package_variable="${1}"
+  local sed_args
   local checksum
-  local key
-  local after="${package_variable}"
 
+  sed_args=(-e "s,^${package_variable}=.*,${package_variable}=${package_version_latest},g")
+  if ! [ "${package_year}" = "" ]; then
+    sed_args+=(-e "s,^${package_year_variable}=.*,${package_year_variable}=${package_year},g")
+  fi
   for checksum in "${package_checksums[@]}"; do
-    key="${checksum%%=*}"
-    if grep -q "^${key}=" "${versions_file}"; then
-      sed -i "s,^${key}=.*,${checksum},g" "${versions_file}" || return 1
-    else
-      sed -i "/^${after}=/a ${checksum}" "${versions_file}" || return 1
-    fi
-    after="${key}"
+    sed_args+=(-e "/^${checksum%%=*}=/d")
   done
+  for checksum in "${package_checksums[@]}"; do
+    sed_args+=(-e "/^${package_variable}=/a ${checksum}")
+  done
+  sed "${sed_args[@]}" "$@"
+
+}
+
+# Uses the variables from update_package.
+# Checks that the branch only has the generated commit, and that the versions file is exactly what the update generates from the merge base, so edits added by hand aren't lost when it's recreated.
+function update_branch_is_generated() {
+
+  local branch_head
+  local merge_base
+
+  branch_head="${1}"
+
+  [ "$(git rev-list --count "origin/master..${branch_head}")" = "1" ] || return 1
+  [ "$(git log -1 --format=%s "${branch_head}")" = "Update ${package_name}" ] || return 1
+  [ "$(git diff --name-only "origin/master...${branch_head}")" = "${versions_file}" ] || return 1
+
+  merge_base=$(git merge-base origin/master "${branch_head}") || return 1
+  cmp -s <(git show "${merge_base}:${versions_file}" | update_versions_file) <(git show "${branch_head}:${versions_file}") || return 1
+
+  return 0
 
 }
 
@@ -790,18 +823,22 @@ function set_package_checksums() {
 function update_all_checksums() {
 
   local package
+  local package_name
   local package_variable
-  local package_version
+  local package_year_variable
+  local package_version_latest
   local package_year
   local failed=0
 
   for package in $(get_packages); do
+    package_name="${package}"
     package_variable="$(echo "${package}" | tr '[:lower:]' '[:upper:]')_VERSION"
-    package_version=$(sed -n "s,^${package_variable}=\(.*\)\$,\1,p" "${versions_file}" | tr -d '[:space:]')
-    package_year=$(sed -n "s,^$(echo "${package}" | tr '[:lower:]' '[:upper:]')_YEAR=\(.*\)\$,\1,p" "${versions_file}" | tr -d '[:space:]')
-    if get_package_checksums "${package}" "${package_version}" "${package_year}"; then
+    package_year_variable="$(echo "${package}" | tr '[:lower:]' '[:upper:]')_YEAR"
+    package_version_latest=$(sed -n "s,^${package_variable}=\(.*\)\$,\1,p" "${versions_file}" | tr -d '[:space:]')
+    package_year=$(sed -n "s,^${package_year_variable}=\(.*\)\$,\1,p" "${versions_file}" | tr -d '[:space:]')
+    if get_package_checksums "${package_name}" "${package_version_latest}" "${package_year}"; then
       remove_package_files
-      set_package_checksums "${package_variable}" || failed=1
+      update_versions_file -i "${versions_file}" || failed=1
     else
       failed=1
     fi
@@ -812,14 +849,16 @@ function update_all_checksums() {
 }
 
 # Uses the variables from update_package.
+# The first argument is the checkout option, -b for a new branch or -B to recreate a checked branch, the rest are passed to git push.
 function push_update_branch() {
 
-  git checkout -B "${branch}" || return 1
-  sed -i "s,^${package_variable}=.*,${package_variable}=${package_version_latest},g" "${versions_file}" || return 1
-  if ! [ "${package_year}" = "" ]; then
-    sed -i "s,^${package_year_variable}=.*,${package_year_variable}=${package_year},g" "${versions_file}" || return 1
-  fi
-  set_package_checksums "${package_variable}" || return 1
+  local checkout_option
+
+  checkout_option="${1}"
+  shift
+
+  git checkout "${checkout_option}" "${branch}" || return 1
+  update_versions_file -i "${versions_file}" || return 1
   git commit -m "Update ${package_name}" "${versions_file}" || return 1
   git push "$@" origin "${branch}" || return 1
   git checkout . >/dev/null 2>&1 || return 1
@@ -829,7 +868,7 @@ function push_update_branch() {
 
 }
 
-cmds="dirname cat head tail cut sort tr grep sed curl jq git gh sha256sum mktemp timeout"
+cmds="dirname cat head tail cut sort tr grep sed cmp curl jq git gh sha256sum mktemp timeout"
 cmds_missing=
 for cmd in ${cmds}; do
   which "${cmd}" >/dev/null 2>&1
