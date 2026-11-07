@@ -41,5 +41,27 @@ jobs:
           git config user.name "$(gh api user --jq '.login')"
           git config user.email "$(gh api user --jq '.id')+$(gh api user --jq '.login')@users.noreply.github.com"
 
+      # Install the SSH key here, so it's not passed to the update script.
+      - name: Install SSH key
+        env:
+          SSH_KEY: ${{secrets.SSH_KEY}}
+          SSH_KNOWN_HOSTS: ${{secrets.SSH_KNOWN_HOSTS}}
+        run: |
+          if [ "${SSH_KEY}" = "" ] || [ "${SSH_KNOWN_HOSTS}" = "" ]; then
+            echo "::warning::Missing SSH_KEY or SSH_KNOWN_HOSTS secret, files will not be uploaded to the packages server."
+            exit 0
+          fi
+          install -d -m 700 ~/.ssh
+          (umask 077 && printf '%s\n' "${SSH_KEY}" > ~/.ssh/packages_key)
+          printf '%s\n' "${SSH_KNOWN_HOSTS}" > ~/.ssh/packages_known_hosts
+
       - name: Update
+        env:
+          SSH_HOST: ${{secrets.SSH_HOST}}
+          SSH_PORT: ${{secrets.SSH_PORT}}
+          PACKAGES_PATH: ${{secrets.PACKAGES_PATH}}
         run: ./.github/scripts/update.sh
+
+      - name: Remove SSH key
+        if: always()
+        run: rm -f ~/.ssh/packages_key ~/.ssh/packages_known_hosts
