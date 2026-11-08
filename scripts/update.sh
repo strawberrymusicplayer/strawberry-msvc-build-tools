@@ -717,8 +717,7 @@ function remove_package_files() {
 }
 
 # Uploads the files from get_package_checksums to the packages server with rsync.
-# The SSH settings are from the SSH_HOST, SSH_PORT and PACKAGES_PATH environment variables, and the SSH key and known hosts files installed by the workflow.
-# SSH_HOST can include the user as user@host, or the user can be set in SSH_USER.
+# The SSH settings are from the SSH_HOST, SSH_PORT, SSH_USER and PACKAGES_PATH environment variables, and the SSH key and known hosts files installed by the workflow.
 function upload_package_files() {
 
   local package_name="${1}"
@@ -741,12 +740,12 @@ function upload_package_files() {
     return 0
   fi
 
-  if [ "${SSH_HOST}" = "" ] && [ "${SSH_PORT}" = "" ] && [ "${PACKAGES_PATH}" = "" ] && ! [ -f "${ssh_key_file}" ]; then
+  if [ "${SSH_HOST}" = "" ] && [ "${SSH_PORT}" = "" ] && [ "${SSH_USER}" = "" ] && [ "${PACKAGES_PATH}" = "" ] && ! [ -f "${ssh_key_file}" ]; then
     status "${package_name}: not uploading to the packages server, the SSH settings are not set."
     return 0
   fi
 
-  for variable in SSH_HOST SSH_PORT PACKAGES_PATH; do
+  for variable in SSH_HOST SSH_PORT SSH_USER PACKAGES_PATH; do
     if [ "${!variable}" = "" ]; then
       missing="${missing} ${variable}"
     fi
@@ -770,7 +769,7 @@ function upload_package_files() {
 
   status "${package_name}: uploading ${files[*]##*/} to the packages server..."
   # Keep the times of the files, and make them readable by the web server.
-  if ! timeout 600 rsync -t --chmod=F644 -e "${ssh_command}" "${files[@]}" "${SSH_USER:+${SSH_USER}@}${SSH_HOST}:${PACKAGES_PATH%/}/"; then
+  if ! timeout 600 rsync -t --chmod=F644 -e "${ssh_command}" "${files[@]}" "${SSH_USER}@${SSH_HOST}:${PACKAGES_PATH%/}/"; then
     error "Could not upload the files for ${package_name} to the packages server."
     return 1
   fi
