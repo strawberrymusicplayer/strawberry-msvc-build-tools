@@ -2980,6 +2980,7 @@ function Build-QtBase {
       DownloadPackage -package_name "qtbase"
       ExtractPackage "qtbase-everywhere-src-$qt_version.tar.xz"
       Push-Location "qtbase-everywhere-src-$qt_version"
+      & patch -p1 -N -i "$patch_path/qtbase-qcryptographichash.patch"
     }
     try {
       CMakeBuild -additional_args @(
