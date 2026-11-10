@@ -117,8 +117,8 @@ rem For release build:
 ```
 
 Strawberry and Windows installer executables are generated in:
-- For debug: `build\x86_64_debug\strawberry\build\`
-- For release: `build\x86_64_release\strawberry\build\`
+- For debug: `build\build_x86_64_debug\strawberry\build\`
+- For release: `build\build_x86_64_release\strawberry\build\`
 
 ## Setting up Strawberry for development in Visual Studio 2022 or 2026
 

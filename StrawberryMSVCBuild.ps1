@@ -27,7 +27,7 @@
 .PARAMETER downloads_path
   Path to downloads directory (default: downloads in the directory of this script)
 .PARAMETER build_path
-  Path to build directory (default: build/<arch>_<build_type> in the directory of this script, where <arch> and <build_type> are substituted with the actual parameter values)
+  Path to build directory (default: build/build_<arch>_<build_type> in the directory of this script, where <arch> and <build_type> are substituted with the actual parameter values)
 .PARAMETER build_strawberry
   Build Strawberry and the StrawberrySetup installer after the dependencies: $true or $false (default: $false)
 .EXAMPLE
@@ -210,7 +210,7 @@ if ([string]::IsNullOrEmpty($downloads_path)) {
 
 # Use default build path if not specified
 if ([string]::IsNullOrEmpty($build_path)) {
-  $build_path = "$($script_path.Replace('\', '/'))/build/${arch}_${build_type}"
+  $build_path = "$($script_path.Replace('\', '/'))/build/build_${arch}_${build_type}"
 }
 
 $prefix_path = "c:/strawberry_msvc_${arch}_${build_type}"
