@@ -47,7 +47,7 @@ cd strawberry-msvc
 
 ### Installation
 
-Install manually from `C:\data\projects\strawberry\msvc_\downloads`:
+Install manually from the `downloads` directory in this repository:
 - **Required**:
     - Install `7z<VERSION>-x64.exe`
     - Install `cmake-<VERSION>-windows-x86_64.msi`
