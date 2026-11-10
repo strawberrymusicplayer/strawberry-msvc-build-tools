@@ -873,6 +873,10 @@ function GetPackageUrls {
       "https://github.com/KDAB/KDSingleApplication/releases/download/v$kdsingleapplication_version/kdsingleapplication-$kdsingleapplication_version.tar.gz",
       "$packages_server/kdsingleapplication-$kdsingleapplication_version.tar.gz"
     )
+    'googletest' = @(
+      "https://github.com/google/googletest/releases/download/v$googletest_version/googletest-$googletest_version.tar.gz",
+      "$packages_server/googletest-$googletest_version.tar.gz"
+    )
     'pe-parse' = @(
       "https://github.com/trailofbits/pe-parse/archive/refs/tags/v$peparse_version/pe-parse-$peparse_version.tar.gz",
       "$packages_server/pe-parse-$peparse_version.tar.gz"
@@ -3125,6 +3129,26 @@ function Build-KDSingleApplication {
   }
 }
 
+function Build-GoogleTest {
+  Write-Host "Building GoogleTest" -ForegroundColor Yellow
+  Push-Location $build_path
+  try {
+    DownloadPackage -package_name "googletest"
+    ExtractPackage "googletest-$googletest_version.tar.gz"
+    Push-Location "googletest-$googletest_version"
+    try {
+      # Build static libraries with the shared CRT, like the rest of the dependencies.
+      CMakeBuild -build_static_libs $true -build_shared_libs $false -additional_args @("-Dgtest_force_shared_crt=ON")
+    }
+    finally {
+      Pop-Location
+    }
+  }
+  finally {
+    Pop-Location
+  }
+}
+
 function Build-PeParse {
   Write-Host "Building pe-parse" -ForegroundColor Yellow
   Push-Location $build_path
@@ -3187,6 +3211,7 @@ function Build-Strawberry {
           "-DENABLE_GPOD=OFF"
         )
       Write-Host "Strawberry built successfully!" -ForegroundColor Green
+      Build-StrawberryTests
     }
     finally {
       Pop-Location
@@ -3195,6 +3220,39 @@ function Build-Strawberry {
   finally {
     Pop-Location
   }
+}
+
+function Build-StrawberryTests {
+  Write-Host "Building strawberry tests" -ForegroundColor Yellow
+  & cmake --build build --target build_tests
+  if ($LASTEXITCODE -ne 0) {
+    throw "Building strawberry tests failed"
+  }
+  Write-Host "Running strawberry tests" -ForegroundColor Yellow
+  $test_env = @{
+    'QT_QPA_PLATFORM' = 'offscreen'
+    'QT_PLUGIN_PATH' = "$prefix_path/plugins"
+    'GST_PLUGIN_PATH' = "$prefix_path/lib/gstreamer-1.0"
+    'GST_PLUGIN_SYSTEM_PATH' = "$prefix_path/lib/gstreamer-1.0"
+    'GIO_MODULE_DIR' = "$prefix_path/lib/gio/modules"
+  }
+  $saved_env = @{}
+  foreach ($name in $test_env.Keys) {
+    $saved_env[$name] = [Environment]::GetEnvironmentVariable($name)
+    [Environment]::SetEnvironmentVariable($name, $test_env[$name])
+  }
+  try {
+    & ctest --test-dir build --build-config $cmake_build_type --output-on-failure
+    if ($LASTEXITCODE -ne 0) {
+      throw "Strawberry tests failed"
+    }
+  }
+  finally {
+    foreach ($name in $saved_env.Keys) {
+      [Environment]::SetEnvironmentVariable($name, $saved_env[$name])
+    }
+  }
+  Write-Host "Strawberry tests passed!" -ForegroundColor Green
 }
 
 function Build-StrawberrySetup {
@@ -3310,6 +3368,7 @@ try {
   if (-not (Test-Path "$prefix_path/lib/cmake/KDSingleApplication-qt6/KDSingleApplication-qt6Config.cmake")) { $build_queue += "kdsingleapplication" }
   if (-not (Test-Path "$prefix_path/lib/cmake/qtsparkle-qt6/qtsparkle-qt6Config.cmake")) { $build_queue += "qtsparkle" }
   if (-not (Test-Path "$prefix_path/lib/pkgconfig/libsparsehash.pc")) { $build_queue += "sparsehash" }
+  if (-not (Test-Path "$prefix_path/lib/cmake/GTest/GTestConfig.cmake")) { $build_queue += "googletest" }
   if (-not (Test-Path "$prefix_path/lib/cmake/pe-parse/pe-parse-config.cmake")) { $build_queue += "pe-parse" }
   if (-not (Test-Path "$prefix_path/bin/peldd.exe")) { $build_queue += "pe-util" }
   if ($build_strawberry) {
@@ -3398,6 +3457,7 @@ try {
       "kdsingleapplication" { Build-KDSingleApplication }
       "qtsparkle" { Build-QtSparkle }
       "sparsehash" { Build-SparseHash }
+      "googletest" { Build-GoogleTest }
       "pe-parse" { Build-PeParse }
       "pe-util" { Build-PeUtil }
       "strawberry" { Build-Strawberry }

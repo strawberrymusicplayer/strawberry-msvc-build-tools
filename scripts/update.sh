@@ -403,6 +403,9 @@ function update_package() {
     "kdsingleapplication")
       package_version_latest=$(latest_github_release "KDAB" "KDSingleApplication")
       ;;
+    "googletest")
+      package_version_latest=$(latest_github_release "google" "googletest")
+      ;;
     "qtsparkle")
       package_version_latest=$(latest_git_commit "https://github.com/jonaski/qtsparkle.git")
       package_git=1
@@ -606,6 +609,7 @@ function package_downloads() {
       echo "QTIMAGEFORMATS_SHA256SUM https://download.qt.io/official_releases/qt/${v_short}/${v}/submodules/qtimageformats-everywhere-src-${v}.tar.xz"
       ;;
     "kdsingleapplication") echo "KDSINGLEAPPLICATION_SHA256SUM https://github.com/KDAB/KDSingleApplication/releases/download/v${v}/kdsingleapplication-${v}.tar.gz" ;;
+    "googletest") echo "GOOGLETEST_SHA256SUM https://github.com/google/googletest/releases/download/v${v}/googletest-${v}.tar.gz" ;;
     "peparse") echo "PE_PARSE_SHA256SUM https://github.com/trailofbits/pe-parse/archive/refs/tags/v${v}/pe-parse-${v}.tar.gz" ;;
     # Git repositories and packages that are not downloaded as files don't have checksums.
     *) ;;
