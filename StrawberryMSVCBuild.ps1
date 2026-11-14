@@ -347,7 +347,7 @@ $cmd_checks = @(
   @{ Command = "win_flex"; Paths = @("C:/win_flex_bison"); Message = "Missing win_flex. Download from https://sourceforge.net/projects/winflexbison/" }
   @{ Command = "win_bison"; Paths = @("C:/win_flex_bison"); Message = "Missing win_bison. Download from https://sourceforge.net/projects/winflexbison/" }
   @{ Command = "perl"; Paths = @("C:/Strawberry/perl/bin"); Message = "Missing perl. Download Strawberry Perl from https://strawberryperl.com/" }
-  @{ Command = "python"; Paths = @("C:/Program Files/Python314", "C:/Program Files/Python313", "C:/Program Files/Python312", "C:/Program Files/Python311", "C:/Program Files/Python310"); Message = "Missing python. Download from https://www.python.org/" }
+  @{ Command = "python"; Paths = @("C:/Program Files/Python315", "C:/Program Files/Python314","C:/Program Files/Python313", "C:/Program Files/Python312", "C:/Program Files/Python311", "C:/Program Files/Python310"); Message = "Missing python. Download from https://www.python.org/" }
   @{ Command = "bzip2"; Paths = @("C:/Program Files/Git/usr/bin"); Message = "Missing bzip2" }
   @{ Command = "7z"; Paths = @("C:/Program Files/7-Zip"); Message = "Missing 7z. Download 7-Zip from https://www.7-zip.org/download.html" }
   @{ Command = "cmake"; Paths = @("C:/Program Files/CMake/bin"); Message = "Missing cmake. Download from https://cmake.org/" }
@@ -357,7 +357,12 @@ $cmd_checks = @(
 
 foreach ($cmd_check in $cmd_checks) {
   if (-not (Test-Command $cmd_check.Command)) {
-    foreach ($path in $cmd_check.Paths) {
+    $search_paths = @($cmd_check.Paths)
+    # Tools installed with pip (e.g. meson) live in Python's scripts directories
+    if ($cmd_check.Command -eq "meson" -and (Test-Command "python")) {
+      $search_paths += @(& python -c "import sysconfig; print(sysconfig.get_path('scripts')); print(sysconfig.get_path('scripts', 'nt_user'))" 2>$null)
+    }
+    foreach ($path in $search_paths) {
       if (Test-Path $path) {
         $cmd_path = "$path/$($cmd_check.Command).exe"
         if (Test-Path $cmd_path) {
