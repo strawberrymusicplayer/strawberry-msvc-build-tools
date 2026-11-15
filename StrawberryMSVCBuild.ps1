@@ -833,6 +833,11 @@ function GetPackageUrls {
       "https://github.com/acoustid/chromaprint/releases/download/v$chromaprint_version/chromaprint-$chromaprint_version.tar.gz",
       "$packages_server/chromaprint-$chromaprint_version.tar.gz"
     )
+    'libcdio' = @(
+      "https://github.com/libcdio/libcdio-C/releases/download/$libcdio_version/libcdio-$libcdio_version.tar.bz2",
+      "https://ftp.gnu.org/gnu/libcdio/libcdio-$libcdio_version.tar.bz2",
+      "$packages_server/libcdio-$libcdio_version.tar.bz2"
+    )
     'gstreamer' = @(
       "https://gstreamer.freedesktop.org/src/gstreamer/gstreamer-$gstreamer_version.tar.xz",
       "$packages_server/gstreamer-$gstreamer_version.tar.xz"
@@ -2647,6 +2652,27 @@ function Build-Chromaprint {
   }
 }
 
+function Build-LibCdio {
+  Write-Host "Building libcdio" -ForegroundColor Yellow
+  Push-Location $build_path
+  try {
+    DownloadPackage -package_name "libcdio"
+    ExtractPackage "libcdio-$libcdio_version.tar.bz2"
+    Push-Location "libcdio-$libcdio_version"
+    try {
+      & patch -p1 -N -i "$patch_path/libcdio-cmake.patch"
+      CMakeBuild
+      Write-Host "libcdio built successfully!" -ForegroundColor Green
+    }
+    finally {
+      Pop-Location
+    }
+  }
+  finally {
+    Pop-Location
+  }
+}
+
 function Build-GStreamer {
   Write-Host "Building GStreamer" -ForegroundColor Yellow
   Push-Location $build_path
@@ -2885,7 +2911,8 @@ function Build-GstPluginsUgly {
           "-Dtests=disabled",
           "-Ddoc=disabled",
           "-Dgpl=enabled",
-          "-Dasfdemux=enabled"
+          "-Dasfdemux=enabled",
+          "-Dcdio=enabled"
         )
     }
     finally {
@@ -3216,7 +3243,7 @@ function Build-Strawberry {
           "-DBUILD_WERROR=ON",
           "-DENABLE_WIN32_CONSOLE=$enable_win32_console",
           "-DICU_ROOT=$prefix_path",
-          "-DENABLE_AUDIOCD=OFF",
+          "-DENABLE_AUDIOCD=ON",
           "-DENABLE_MTP=OFF",
           "-DENABLE_GPOD=OFF"
         )
@@ -3365,11 +3392,12 @@ try {
   if (-not (Test-Path "$prefix_path/lib/pkgconfig/libebur128.pc")) { $build_queue += "libebur128" }
   if (-not (Test-Path "$prefix_path/lib/avutil.lib")) { $build_queue += "ffmpeg" }
   if (-not (Test-Path "$prefix_path/lib/pkgconfig/libchromaprint.pc")) { $build_queue += "chromaprint" }
+  if (-not (Test-Path "$prefix_path/lib/pkgconfig/libcdio.pc")) { $build_queue += "libcdio" }
   if (-not (Test-Path "$prefix_path/lib/pkgconfig/gstreamer-1.0.pc")) { $build_queue += "gstreamer" }
   if (-not (Test-Path "$prefix_path/lib/pkgconfig/gstreamer-base-1.0.pc")) { $build_queue += "gst-plugins-base" }
   if (-not (Test-Path "$prefix_path/lib/gstreamer-1.0/gstflac.dll")) { $build_queue += "gst-plugins-good" }
   if (-not (Test-Path "$prefix_path/lib/pkgconfig/gstreamer-plugins-bad-1.0.pc")) { $build_queue += "gst-plugins-bad" }
-  if (-not (Test-Path "$prefix_path/lib/gstreamer-1.0/gstasf.dll")) { $build_queue += "gst-plugins-ugly" }
+  if (-not (Test-Path "$prefix_path/lib/gstreamer-1.0/gstasf.dll") -or -not (Test-Path "$prefix_path/lib/gstreamer-1.0/gstcdio.dll")) { $build_queue += "gst-plugins-ugly" }
   if (-not (Test-Path "$prefix_path/lib/gstreamer-1.0/gstlibav.dll")) { $build_queue += "gst-libav" }
   if (-not (Test-Path "$prefix_path/lib/gstreamer-1.0/gstspotify.dll")) { $build_queue += "gst-plugins-rs" }
   if (-not (Test-Path "$prefix_path/bin/qt-configure-module.bat")) { $build_queue += "qtbase" }
@@ -3454,6 +3482,7 @@ try {
       "libebur128" { Build-LibEBUR128 }
       "ffmpeg" { Build-FFMpeg }
       "chromaprint" { Build-Chromaprint }
+      "libcdio" { Build-LibCdio }
       "gstreamer" { Build-GStreamer }
       "gst-plugins-base" { Build-GstPluginsBase }
       "gst-plugins-good" { Build-GstPluginsGood }

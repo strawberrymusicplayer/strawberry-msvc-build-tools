@@ -390,6 +390,9 @@ function update_package() {
     "chromaprint")
       package_version_latest=$(latest_github_release "acoustid" "chromaprint")
       ;;
+    "libcdio")
+      package_version_latest=$(latest_github_release "libcdio" "libcdio-C")
+      ;;
     "gstreamer")
       package_version_latest=$(curl ${curl_options} 'https://gstreamer.freedesktop.org/src/gstreamer' | sed -n "s,.*gstreamer-\([0-9]\.[0-9][02468]\.[0-9]*\)\.tar\.xz.*,\\1,p" | sort -V | tail -1)
       ;;
@@ -592,6 +595,7 @@ function package_downloads() {
     "utfcpp") echo "UTFCPP_SHA256SUM https://github.com/nemtrif/utfcpp/archive/refs/tags/v${v}/utfcpp-${v}.tar.gz" ;;
     "taglib") echo "TAGLIB_SHA256SUM https://taglib.org/releases/taglib-${v}.tar.gz" ;;
     "libbs2b") echo "LIBBS2B_SHA256SUM https://downloads.sourceforge.net/project/bs2b/libbs2b/${v}/libbs2b-${v}.tar.bz2" ;;
+    "libcdio") echo "LIBCDIO_SHA256SUM https://github.com/libcdio/libcdio-C/releases/download/${v}/libcdio-${v}.tar.bz2" ;;
     "libebur128") echo "LIBEBUR128_SHA256SUM https://github.com/jiixyj/libebur128/archive/refs/tags/v${v}/libebur128-${v}.tar.gz" ;;
     "chromaprint") echo "CHROMAPRINT_SHA256SUM https://github.com/acoustid/chromaprint/releases/download/v${v}/chromaprint-${v}.tar.gz" ;;
     "gstreamer")
