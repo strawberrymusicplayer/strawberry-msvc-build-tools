@@ -2661,6 +2661,7 @@ function Build-LibCdio {
     Push-Location "libcdio-$libcdio_version"
     try {
       & patch -p1 -N -i "$patch_path/libcdio-cmake.patch"
+	  & patch -p1 -N -i "$patch_path/libcdio-discmode.patch"
       CMakeBuild
       Write-Host "libcdio built successfully!" -ForegroundColor Green
     }
